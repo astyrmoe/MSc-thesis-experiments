@@ -4,6 +4,8 @@ import edu.ntnu.alekssty.master.centroids.*;
 import edu.ntnu.alekssty.master.features.*;
 import edu.ntnu.alekssty.master.utils.PrintCentorids;
 import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.accumulators.Histogram;
+import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.api.common.functions.*;
 import org.apache.flink.api.common.state.BroadcastState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
@@ -21,13 +23,16 @@ import org.apache.flink.ml.linalg.DenseVector;
 import org.apache.flink.ml.param.Param;
 import org.apache.flink.ml.util.ParamUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
+import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.api.internal.TableImpl;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.OutputTag;
 
 import java.util.*;
 
@@ -37,6 +42,8 @@ public class KMeans implements KMeansParams<KMeans> {
     public KMeans() {
         ParamUtils.initializeMapWithDefaultValues(paramMap, this);
     }
+
+    static final OutputTag<String> smallDomains = new OutputTag<String>("small-domains"){};
 
     @Override
     public Map<Param<?>, Object> getParamMap() {
@@ -59,7 +66,8 @@ public class KMeans implements KMeansParams<KMeans> {
                 )));
         points.print("Starting points");
 
-        DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
+        //DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
+        SingleOutputStreamOperator<Centroid[]> initCentroids = temp(points, getK(), getSeed(), method);
         initCentroids.process(new PrintCentorids());
 
         IterationConfig config = IterationConfig.newBuilder()
@@ -78,7 +86,13 @@ public class KMeans implements KMeansParams<KMeans> {
         DataStream<Centroid[]> iRCentroids = iterationResult.get(0);
         iRCentroids.process(new PrintCentorids());
 
-        return iterationResult;
+        DataStreamList returnedStreams = DataStreamList.of(
+                iRCentroids,
+                iterationResult.get(1),
+                initCentroids.getSideOutput(smallDomains)
+        );
+
+        return returnedStreams;
     }
 
     private static Feature featureMaker(Methods type, DenseVector features, String domain) throws Exception {
@@ -105,6 +119,65 @@ public class KMeans implements KMeansParams<KMeans> {
                 throw new IllegalStateException("Unexpected value: " + type);
         }
         return out;
+    }
+
+    private static SingleOutputStreamOperator<Centroid[]> temp(DataStream<Feature> points, int k, long seed, Methods type) {
+        return points.keyBy(Feature::getDomain).window(EndOfStreamWindows.get()).process(new ProcessWindowFunction<Feature, Centroid[], String, TimeWindow>() {
+            IntCounter accNumFeaturesToCentroid = new IntCounter();
+            IntCounter accNumDomainsToCentoird = new IntCounter();
+            IntCounter accNumberOfSmallDomains = new IntCounter();
+            IntCounter accNumberOfLargeDomains = new IntCounter();
+
+            @Override
+            public void open(Configuration parameters) throws Exception {
+                super.open(parameters);
+                getRuntimeContext().addAccumulator("features-into-select-centroid", accNumFeaturesToCentroid);
+                getRuntimeContext().addAccumulator("domains-into-select-centroid", accNumDomainsToCentoird);
+                getRuntimeContext().addAccumulator("small-domains", accNumberOfSmallDomains);
+                getRuntimeContext().addAccumulator("large-domains", accNumberOfLargeDomains);
+            }
+
+            @Override
+            public void process(String s, ProcessWindowFunction<Feature, Centroid[], String, TimeWindow>.Context context, Iterable<Feature> iterable, Collector<Centroid[]> collector) throws Exception {
+                accNumDomainsToCentoird.add(1);
+                List<Feature> vectors = new ArrayList<>();
+                for (Feature feature : iterable) {
+                    accNumFeaturesToCentroid.add(1);
+                    vectors.add(feature);
+                }
+                if (vectors.size()<k) {
+                    context.output(smallDomains, s);
+                    accNumberOfSmallDomains.add(1);
+                    return;
+                }
+                accNumberOfLargeDomains.add(1);
+                Collections.shuffle(vectors, new Random(seed));
+                Feature[] centroids = vectors.subList(0, k).toArray(new Feature[0]);
+                Centroid[] outArray = new Centroid[k];
+                for (int i = 0; i < k ; i++) {
+                    switch (type) {
+                        case ELKAN:
+                            outArray[i] = new ElkanCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
+                            break;
+                        case PHILIPS:
+                            outArray[i] = new PhilipsCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
+                            break;
+                        case HAMERLY:
+                            outArray[i] = new HamerlyCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
+                            break;
+                        case DRAKE:
+                            if (k < 3) {
+                                throw new Exception("k<3 is not allowed");
+                            }
+                            outArray[i] = new DrakeCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
+                            break;
+                        default:
+                            outArray[i] = new NaiveCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
+                    }
+                }
+                collector.collect(outArray);
+            }
+        });
     }
 
     private static DataStream<Centroid[]> selectRandomCentroids(DataStream<Feature> points, int k, long seed, Methods type) {
@@ -163,6 +236,7 @@ public class KMeans implements KMeansParams<KMeans> {
     private static class UpdatePoints extends BroadcastProcessFunction<Feature, Centroid[], Feature> {
 
         Map<String, List<Feature>> buffer;
+        //Histogram numFeaturesInUpdatePoints = new Histogram();
         MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
                 String.class,
@@ -170,6 +244,7 @@ public class KMeans implements KMeansParams<KMeans> {
 
         @Override
         public void processElement(Feature feature, BroadcastProcessFunction<Feature, Centroid[], Feature>.ReadOnlyContext readOnlyContext, Collector<Feature> collector) throws Exception {
+            //numFeaturesInUpdatePoints.add(1);
             ReadOnlyBroadcastState<String, Centroid[]> state = readOnlyContext.getBroadcastState(centroidStateDescriptor);
             String domain = feature.getDomain();
             if (!state.contains(domain)) {
@@ -220,6 +295,7 @@ public class KMeans implements KMeansParams<KMeans> {
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
+            //getRuntimeContext().addAccumulator("number-of-points-in-iteration", numFeaturesInUpdatePoints);
             buffer = new HashMap<>();
         }
     }

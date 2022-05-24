@@ -24,13 +24,14 @@ public class ResultJob {
 
         int k = parameter.getInt("k", 2);
         String method = parameter.get("method", "naive");
+        String rootPath = parameter.get("root", "/tmp/experiment-results/");
 
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment()
                 .setRuntimeMode(RuntimeExecutionMode.BATCH)
                 .setParallelism(1);
 
         CsvReaderFormat<SomePojo> csvFormat = CsvReaderFormat.forPojo(SomePojo.class);
-        FileSource<SomePojo> source = FileSource.forRecordStreamFormat(csvFormat, Path.fromLocalFile(new File(method+"-points.out"))).build();
+        FileSource<SomePojo> source = FileSource.forRecordStreamFormat(csvFormat, Path.fromLocalFile(new File(rootPath + method+"-points.csv"))).build();
 
         DataStream<SomePojo> points = env.fromSource(source, WatermarkStrategy.noWatermarks(), "Source");
 
@@ -72,7 +73,7 @@ public class ResultJob {
             }
         });
 
-        accumulated.writeAsCsv(method + "-accumulated.out", FileSystem.WriteMode.OVERWRITE);
+        accumulated.writeAsCsv(rootPath + method + "-accumulated.csv", FileSystem.WriteMode.OVERWRITE);
         env.execute();
     }
 

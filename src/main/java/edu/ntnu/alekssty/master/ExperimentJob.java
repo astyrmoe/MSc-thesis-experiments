@@ -20,7 +20,6 @@ package edu.ntnu.alekssty.master;
 
 import edu.ntnu.alekssty.master.centroids.Centroid;
 import edu.ntnu.alekssty.master.features.Feature;
-import edu.ntnu.alekssty.master.utils.CalculateRatesFunction;
 import edu.ntnu.alekssty.master.utils.FeatureToTupleFunction;
 import edu.ntnu.alekssty.master.utils.NSLKDDConnector;
 import org.apache.flink.api.common.JobExecutionResult;
@@ -48,10 +47,12 @@ public class ExperimentJob {
 		ParameterTool parameter = ParameterTool.fromArgs(args);
 
 		String method = parameter.get("method", "naive");
-		String path = parameter.get("path", "/home/aleks/dev/master/master-jobbing-git/flink/k-means-naive/src/main/resources/KDDTrain+_20Percent.txt");
+		String path = parameter.get("path", "/home/aleks/dev/master/NSL-KDD/KDDTrain+.txt");
 		int k = parameter.getInt("k", 2);
+		String rootPath = parameter.get("root", "/tmp/experiment-results/");
 
-		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment().setParallelism(1);//.setRuntimeMode(RuntimeExecutionMode.BATCH);
+		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment()
+				.setParallelism(1);//.setRuntimeMode(RuntimeExecutionMode.BATCH);
 		final StreamTableEnvironment tEnv = StreamTableEnvironment.create(env); //, EnvironmentSettings.inBatchMode());
 
 		NSLKDDConnector source = new NSLKDDConnector(path, tEnv);
@@ -61,36 +62,45 @@ public class ExperimentJob {
 				.setK(k)
 				.setMaxIter(20);
 
-		Table data = source.getDataTable().limit(10000);
+		Table data = source.getDataTable();
 
 		DataStreamList result = engine.fit(data, method);
 
+		result.get(2).writeAsText(rootPath + method + "-smalldomains.csv", FileSystem.WriteMode.OVERWRITE);
+
 		DataStream<Centroid[]> resultedCentroids = result.get(0);
-		resultedCentroids.flatMap(new FlatMapFunction<Centroid[], Tuple2<String, DenseVector>>() {
-			@Override
-			public void flatMap(Centroid[] centroids, Collector<Tuple2<String, DenseVector>> collector) throws Exception {
-				for (Centroid centroid : centroids) {
-					collector.collect(Tuple2.of(centroid.getDomain(), centroid.getVector()));
-				}
-			}
-		}).writeAsCsv(method+"-centroids.out", FileSystem.WriteMode.OVERWRITE);
+		resultedCentroids
+				.flatMap(new CentroidToTupleForFileOperator())
+				.writeAsCsv(rootPath + method+"-centroids.csv", FileSystem.WriteMode.OVERWRITE);
 
 		DataStream<Feature> resultedFeatures = result.get(1);
 		DataStream<Tuple2<Integer, String>> pointsToResultTable = resultedFeatures.map(new FeatureToTupleFunction());
 		Table workingTable = tEnv.fromDataStream(pointsToResultTable).as("assigned", "id2")
 				.join(data).where($("id").isEqual($("id2")));
 		tEnv.toDataStream(workingTable.select($("domain"), $("assigned"), $("cluster")))
-				.map(new MapFunction<Row, Tuple3<String, Integer, String>>() {
-					@Override
-					public Tuple3<String, Integer, String> map(Row row) throws Exception {
-						return Tuple3.of((String)row.getField("domain"), (Integer)row.getField("assigned"), (String)row.getField("cluster"));
-					}
-				})
-				.writeAsCsv(method+"-points.out", FileSystem.WriteMode.OVERWRITE);
+				.map(new PointsToTupleForFileOperator())
+				.writeAsCsv(rootPath + method + "-points.csv", FileSystem.WriteMode.OVERWRITE);
 
-		DataStream<Row> resultedRates = tEnv.toDataStream(workingTable).keyBy(t->t.getField("domain")).map(new CalculateRatesFunction());
-
+		System.out.println("PARAMETES:\n" + parameter.toMap());
+		System.out.println("CONFIGURATION:\n" + env.getConfiguration());
+		System.out.println("EXEC PLAN:\n" + env.getExecutionPlan());
 		JobExecutionResult jobResult = env.execute("Experimental work");
-		System.out.println(jobResult.getJobExecutionResult());
+		System.out.println("JOB RESULTS:\n" + jobResult.getJobExecutionResult());
+	}
+
+	private static class CentroidToTupleForFileOperator implements FlatMapFunction<Centroid[], Tuple2<String, DenseVector>> {
+		@Override
+		public void flatMap(Centroid[] centroids, Collector<Tuple2<String, DenseVector>> collector) throws Exception {
+			for (Centroid centroid : centroids) {
+				collector.collect(Tuple2.of(centroid.getDomain(), centroid.getVector()));
+			}
+		}
+	}
+
+	private static class PointsToTupleForFileOperator implements MapFunction<Row, Tuple3<String, Integer, String>> {
+		@Override
+		public Tuple3<String, Integer, String> map(Row row) throws Exception {
+			return Tuple3.of((String)row.getField("domain"), (Integer)row.getField("assigned"), (String)row.getField("cluster"));
+		}
 	}
 }
