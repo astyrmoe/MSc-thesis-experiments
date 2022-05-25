@@ -1,4 +1,4 @@
-package edu.ntnu.alekssty.master;
+package edu.ntnu.alekssty.master.dataoperations;
 
 import edu.ntnu.alekssty.master.utils.NSLKDDConnector;
 import org.apache.flink.api.common.functions.AggregateFunction;

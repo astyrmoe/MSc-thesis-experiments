@@ -1,4 +1,4 @@
-package edu.ntnu.alekssty.master;
+package edu.ntnu.alekssty.master.dataoperations;
 
 import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;

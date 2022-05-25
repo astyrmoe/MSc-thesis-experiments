@@ -22,6 +22,8 @@ import edu.ntnu.alekssty.master.centroids.Centroid;
 import edu.ntnu.alekssty.master.features.Feature;
 import edu.ntnu.alekssty.master.utils.FeatureToTupleFunction;
 import edu.ntnu.alekssty.master.utils.NSLKDDConnector;
+import edu.ntnu.alekssty.master.utils.DebugFeatures;
+import edu.ntnu.alekssty.master.utils.Counter;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -62,11 +64,11 @@ public class ExperimentJob {
 				.setK(k)
 				.setMaxIter(20);
 
-		Table data = source.getDataTable();
+		Table data = source.getDataTable();//.where($("domain").isEqual("tcpauthSH"));
 
 		DataStreamList result = engine.fit(data, method);
 
-		result.get(2).writeAsText(rootPath + method + "-smalldomains.csv", FileSystem.WriteMode.OVERWRITE);
+		//result.get(2).writeAsText(rootPath + method + "-smalldomains.csv", FileSystem.WriteMode.OVERWRITE);
 
 		DataStream<Centroid[]> resultedCentroids = result.get(0);
 		resultedCentroids
@@ -74,16 +76,21 @@ public class ExperimentJob {
 				.writeAsCsv(rootPath + method+"-centroids.csv", FileSystem.WriteMode.OVERWRITE);
 
 		DataStream<Feature> resultedFeatures = result.get(1);
+		resultedFeatures.process(new DebugFeatures("F Resulted feature", true, false));
 		DataStream<Tuple2<Integer, String>> pointsToResultTable = resultedFeatures.map(new FeatureToTupleFunction());
+		pointsToResultTable.map(t->1).process(new Counter("Points to result table"));
+		//tEnv.toDataStream(data).map(t->1).process(new Counter("Original data"));
 		Table workingTable = tEnv.fromDataStream(pointsToResultTable).as("assigned", "id2")
 				.join(data).where($("id").isEqual($("id2")));
-		tEnv.toDataStream(workingTable.select($("domain"), $("assigned"), $("cluster")))
-				.map(new PointsToTupleForFileOperator())
-				.writeAsCsv(rootPath + method + "-points.csv", FileSystem.WriteMode.OVERWRITE);
+		tEnv.toDataStream(workingTable).map(t->1).process(new Counter("Working table"));
+		DataStream<Tuple3<String, Integer, String>> readyForCSV = tEnv.toDataStream(workingTable.select($("domain"), $("assigned"), $("cluster")))
+				.map(new PointsToTupleForFileOperator());
+		readyForCSV.map(t->1).process(new Counter("Ready for CSV"));
+		readyForCSV.writeAsCsv(rootPath + method + "-points.csv", FileSystem.WriteMode.OVERWRITE);
+		//readyForCSV.map(Tuple3::toString).sinkTo(FileSink.forRowFormat(new Path("test"), new SimpleStringEncoder<String>()).withBucketAssigner(new BasePathBucketAssigner<String>()).build());
 
-		System.out.println("PARAMETES:\n" + parameter.toMap());
-		System.out.println("CONFIGURATION:\n" + env.getConfiguration());
-		System.out.println("EXEC PLAN:\n" + env.getExecutionPlan());
+		//System.out.println("PARAMETES:\n" + parameter);
+		//System.out.println("EXEC PLAN:\n" + env.getExecutionPlan());
 		JobExecutionResult jobResult = env.execute("Experimental work");
 		System.out.println("JOB RESULTS:\n" + jobResult.getJobExecutionResult());
 	}

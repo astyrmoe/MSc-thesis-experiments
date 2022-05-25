@@ -77,7 +77,7 @@ public class NSLKDDConnector {
                         .column("dst_host_rerror_rate", DataTypes.FLOAT())
                         .column("dst_host_srv_rerror_rate", DataTypes.FLOAT())
                         .column("class", DataTypes.STRING())
-                        .column("43", DataTypes.FLOAT())
+                        .column("difficulty", DataTypes.DOUBLE())
                         .build())
                 .option("path", this.path)
                 .format(FormatDescriptor.forFormat("csv").build())
@@ -127,7 +127,7 @@ public class NSLKDDConnector {
                         .column("dst_host_rerror_rate", DataTypes.DOUBLE())
                         .column("dst_host_srv_rerror_rate", DataTypes.DOUBLE())
                         .column("class", DataTypes.STRING())
-                        .column("43", DataTypes.DOUBLE())
+                        .column("difficulty", DataTypes.DOUBLE())
                 .build())
                 .option("path", this.path)
                 .format(FormatDescriptor.forFormat("csv").build())
@@ -182,107 +182,13 @@ public class NSLKDDConnector {
                         $("dst_host_serror_rate"),
                         $("dst_host_srv_serror_rate"),
                         $("dst_host_rerror_rate"),
-                        $("dst_host_srv_rerror_rate"),
-                        $("43")
+                        $("dst_host_srv_rerror_rate")
                 ).as("cluster", "features"))
                 .select($("class"), $("cluster"), $("protocol_type"), $("service"), $("flag"), $("features"));
         //fourStringsAndFeatureArray.printSchema();
         DataStream<R> formattedRecords = tEnv.toDataStream(fourStringsAndFeatureArray).map(new FormatRowFunction());
         //formattedRecords.print("f");
         return tEnv.fromDataStream(formattedRecords).as("class", "cluster", "domain", "features", "id");
-    }
-
-    public Table getFeatureClassTable() {
-        Table floatsAndClass = getSourceTableNumbers()
-                .select(
-                        $("class"),
-                        $("duration"),
-                        $("src_bytes"),
-                        $("dst_bytes"),
-                        $("land"),
-                        $("wrong_fragment"),
-                        $("urgent"),
-                        $("hot"),
-                        $("num_failed_logins"),
-                        $("logged_in"),
-                        $("num_compromised"),
-                        $("root_shell"),
-                        $("su_attempted"),
-                        $("num_root"),
-                        $("num_file_creations"),
-                        $("num_shells"),
-                        $("num_access_files"),
-                        $("num_outbound_cmds"),
-                        $("is_hot_login"),
-                        $("is_guest_login"),
-                        $("count"),
-                        $("srv_count"),
-                        $("serror_rate"),
-                        $("srv_serror_rate"),
-                        $("rerror_rate"),
-                        $("srv_rerror_rate"),
-                        $("same_srv_rate"),
-                        $("diff_srv_rate"),
-                        $("srv_diff_host_rate"),
-                        $("dst_host_count"),
-                        $("dst_host_srv_count"),
-                        $("dst_host_same_srv_rate"),
-                        $("dst_host_diff_srv_rate"),
-                        $("dst_host_same_src_port_rate"),
-                        $("dst_host_srv_diff_host_rate"),
-                        $("dst_host_serror_rate"),
-                        $("dst_host_srv_serror_rate"),
-                        $("dst_host_rerror_rate"),
-                        $("dst_host_srv_rerror_rate"),
-                        $("43")
-                )
-                .leftOuterJoinLateral(call(FloatsAndClassMaker.class,$("*")).as("class1", "feature"))
-                .select($("class1"), $("feature"))
-                .as("class", "feature");
-        return convertFeatureToDenseVectorWithClass(floatsAndClass);
-    }
-
-    private Table convertFeatureToDenseVectorWithClass(Table input) {
-        DataStream<Record> dataStream = tEnv.toDataStream(input).map(new MapFunction<Row, Record>() {
-            @Override
-            public Record map(Row row) throws Exception {
-                Double[] feature = (Double[]) row.getField("feature");
-                double[] f = new double[feature.length];
-                int i = 0;
-                for (double d : feature) {
-                    f[i] = d;
-                    i++;
-                }
-                return new Record((String) row.getField("class1"), Vectors.dense(f));
-            }
-        });
-        return tEnv.fromDataStream(dataStream).as("class1", "feature", "id");
-    }
-
-    public static class Record {
-        public String attackClass;
-        public DenseVector feature;
-        public Tuple3<String, String, String> domain;
-        public String id;
-
-        public Record() {
-        }
-
-        public Record(Row row) {
-            this.attackClass = (String) row.getField("class");
-            //this.feature = row
-        }
-
-        public Record(String attackClass, DenseVector feature) {
-            this.attackClass = attackClass;
-            this.feature = feature;
-            try {
-                this.id = ComputeId.compute(feature);
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-                this.id = null;
-            }
-        }
     }
 
     public static void test() {
@@ -293,13 +199,6 @@ public class NSLKDDConnector {
         Table t = nslkddConnector.getDataTable();
         t.printSchema();
         t.limit(4).execute().print();
-    }
-
-    @FunctionHint(output = @DataTypeHint("ROW<class STRING, floats ARRAY<DOUBLE>>"))
-    public static class FloatsAndClassMaker extends TableFunction<Row> {
-        public void eval(String s, Double... floats) {
-            collect(Row.of(s, floats));
-        }
     }
 
     @FunctionHint(output = @DataTypeHint("ROW<s STRING, floats ARRAY<DOUBLE>>"))
@@ -340,7 +239,8 @@ public class NSLKDDConnector {
             object.attackClass = (String) row.getField("class");
             object.cluster = (String) row.getField("cluster");
             object.features = Vectors.dense(f);
-            object.id = ComputeId.compute(object.features);
+            object.id = ComputeId.compute(object.features, object.domain);
+            //object.difficulty = (double) row.getField("difficulty");
             return object;
         }
     }
@@ -352,6 +252,7 @@ public class NSLKDDConnector {
         public String attackClass;
         public String cluster;
         public DenseVector features;
+        //public double difficulty;
 
         public R() {
         }
