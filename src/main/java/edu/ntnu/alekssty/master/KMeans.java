@@ -66,13 +66,10 @@ public class KMeans implements KMeansParams<KMeans> {
                         method,
                         (DenseVector) row.getField("features"),
                         (String) row.getField("domain")
-                )));
+                ))).name("FeatureMaker");
 
         DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
-        //SingleOutputStreamOperator<Centroid[]> initCentroids = temp(points, getK(), getSeed(), method);
-        initCentroids.process(new DebugCentorids("C Init centroids", true, false));
-
-        //DataStream<Feature> filteredPoints = initCentroids.getSideOutput(largeDomainsFeatures);
+        //initCentroids.process(new DebugCentorids("C Init centroids", true, false));
 
         IterationConfig config = IterationConfig.newBuilder()
                 .setOperatorLifeCycle(IterationConfig.OperatorLifeCycle.PER_ROUND)
@@ -87,29 +84,14 @@ public class KMeans implements KMeansParams<KMeans> {
                 body
         );
 
-        DataStream<Centroid[]> iRCentroids = iterationResult.get(0);
-        iRCentroids.process(new DebugCentorids("C Iteration result", true, false));
-        DataStream<Feature> as = iterationResult.get(1);
-        as.process(new DebugFeatures("F Iteration result", true, false));
-        as.process(new ProcessFunction<Feature, Feature>() {
-            IntCounter accFeatureOut;
-            @Override
-            public void open(Configuration parameters) throws Exception {
-                super.open(parameters);
-                accFeatureOut = new IntCounter();
-                getRuntimeContext().addAccumulator("feature-out", accFeatureOut);
-            }
-
-            @Override
-            public void processElement(Feature feature, ProcessFunction<Feature, Feature>.Context context, Collector<Feature> collector) throws Exception {
-                accFeatureOut.add(1);
-            }
-        });
+        DataStream<Centroid[]> iterationResultsCentroids = iterationResult.get(0);
+        //iterationResultsCentroids.process(new DebugCentorids("C Iteration result", true, false));
+        DataStream<Feature> iterationsResultFeatures = iterationResult.get(1);
+        //iterationsResultFeatures.process(new DebugFeatures("F Iteration result", true, false));
 
         return DataStreamList.of(
-                iRCentroids,
-                iterationResult.get(1)
-                //initCentroids.getSideOutput(smallDomains)
+                iterationResultsCentroids,
+                iterationsResultFeatures
         );
     }
 
@@ -347,7 +329,6 @@ public class KMeans implements KMeansParams<KMeans> {
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
-            //getRuntimeContext().addAccumulator("number-of-points-in-iteration", numFeaturesInUpdatePoints);
             buffer = new HashMap<>();
         }
     }
@@ -502,7 +483,6 @@ public class KMeans implements KMeansParams<KMeans> {
     private static class KMeansIterationBody implements IterationBody {
 
         int k;
-
         MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
                 String.class,
@@ -516,9 +496,9 @@ public class KMeans implements KMeansParams<KMeans> {
         @Override
         public IterationBodyResult process(DataStreamList variableStreams, DataStreamList dataStreams) {
             DataStream<Centroid[]> centroids = variableStreams.get(0);
-            centroids.process(new DebugCentorids("C Into iteration", false, false));
+            //centroids.process(new DebugCentorids("C Into iteration", false, false));
             DataStream<Feature> points = variableStreams.get(1);
-            points.process(new DebugFeatures("F Into iteration", false, false));
+            //points.process(new DebugFeatures("F Into iteration", false, false));
 
             DataStream<Integer> terminationCriteria = centroids.flatMap(new FlatMapFunction<Centroid[], Integer>() {
                 @Override
@@ -530,33 +510,34 @@ public class KMeans implements KMeansParams<KMeans> {
                         }
                     }
                 }
-            });
+            }).name("Termination criteria");
 
-            DataStream<Feature> newPoints = points.connect(centroids.broadcast(centroidStateDescriptor))
-                    .process(new UpdatePoints());
-            newPoints.process(new DebugFeatures("F New point", false, false));
+            DataStream<Feature> newPoints = points
+                    .connect(centroids.broadcast(centroidStateDescriptor))
+                    .process(new UpdatePoints()).name("Update Points");
+            //newPoints.process(new DebugFeatures("F New point", false, false));
 
-            DataStream<Centroid[]> finalCentroids = centroids.filter(new CentroidFilterFunction(true));
-            DataStream<Feature> finalPoints = newPoints.filter(new FeatureFilterFunction(true));
-            finalPoints.process(new DebugFeatures("F Final point filter", false, false));
+            DataStream<Centroid[]> finalCentroids = centroids.filter(new CentroidFilterFunction(true)).name("Filter finished centorids");
+            DataStream<Feature> finalPoints = newPoints.filter(new FeatureFilterFunction(true)).name("Filter finished points");
+            //finalPoints.process(new DebugFeatures("F Final point filter", false, false));
 
-            DataStream<Centroid[]> centroidsStillWithUs = centroids.filter(new CentroidFilterFunction(false));
-            DataStream<Feature> pointsStillWithUs = newPoints.filter(new FeatureFilterFunction(false));
-            pointsStillWithUs.process(new DebugFeatures("F Points still with us filter", false, false));
+            DataStream<Centroid[]> centroidsNotFinished = centroids.filter(new CentroidFilterFunction(false)).name("Filter not finished centroids");
+            DataStream<Feature> pointsNotFinished = newPoints.filter(new FeatureFilterFunction(false)).name("Filter not finished points");
+            //pointsNotFinished.process(new DebugFeatures("F Points still with us filter", false, false));
 
             DataStreamList perRoundResults = IterationBody.forEachRound(
-                    DataStreamList.of(pointsStillWithUs),
+                    DataStreamList.of(pointsNotFinished),
                     dataStreamList -> {
                         DataStream<Feature> newPoints1 = dataStreamList.get(0);
 
                         DataStream<Tuple3<String, Integer, DenseVector>[]> newCentroidValues = newPoints1
-                                .map(new CentroidValueFormatter())
+                                .map(new CentroidValueFormatter()).name("Centroid value formatter")
                                 .keyBy(new KeyCentroidValues())
                                 .window(EndOfStreamWindows.get())
-                                .reduce(new CentroidValueAccumulator())
-                                .map(new CentroidValueAverager())
+                                .reduce(new CentroidValueAccumulator()).name("Centroid value accumulator")
+                                .map(new CentroidValueAverager()).name("Centroid value averager")
                                 .windowAll(EndOfStreamWindows.get())
-                                .apply(new ToList());
+                                .apply(new ToList()).name("Centroid value to list");
 
                         return DataStreamList.of(
                                 newCentroidValues
@@ -566,8 +547,8 @@ public class KMeans implements KMeansParams<KMeans> {
             DataStream<Tuple3<String, Integer, DenseVector>[]> newCentroidValues = perRoundResults.get(0);
 
             DataStream<Centroid[]> newCentroids = newCentroidValues
-                    .connect(centroidsStillWithUs.broadcast(centroidStateDescriptor))
-                    .process(new CentroidUpdater());
+                    .connect(centroidsNotFinished.broadcast(centroidStateDescriptor))
+                    .process(new CentroidUpdater()).name("Centroid updater");
 
             // TODO Move to beginning of next iteration
             DataStream<Centroid[]> cf = newCentroids.map(new MapFunction<Centroid[], Centroid[]>() {
@@ -592,7 +573,7 @@ public class KMeans implements KMeansParams<KMeans> {
             return new IterationBodyResult(
                     DataStreamList.of(
                             cf,
-                            pointsStillWithUs
+                            pointsNotFinished
                     ),
                     DataStreamList.of(
                             finalCentroids,
@@ -602,5 +583,4 @@ public class KMeans implements KMeansParams<KMeans> {
             );
         }
     }
-
 }

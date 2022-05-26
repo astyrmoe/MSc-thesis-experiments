@@ -55,7 +55,7 @@ public class ExperimentJob {
 
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment()
 				.setParallelism(1);//.setRuntimeMode(RuntimeExecutionMode.BATCH);
-		final StreamTableEnvironment tEnv = StreamTableEnvironment.create(env); //, EnvironmentSettings.inBatchMode());
+		final StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);//, EnvironmentSettings.inBatchMode());
 
 		NSLKDDConnector source = new NSLKDDConnector(path, tEnv);
 		source.connect();
@@ -72,11 +72,11 @@ public class ExperimentJob {
 
 		DataStream<Centroid[]> resultedCentroids = result.get(0);
 		resultedCentroids
-				.flatMap(new CentroidToTupleForFileOperator())
+				.flatMap(new CentroidToTupleForFileOperator()).name("Make centroids csv-ready")
 				.writeAsCsv(rootPath + method+"-centroids.csv", FileSystem.WriteMode.OVERWRITE);
 
 		DataStream<Feature> resultedFeatures = result.get(1);
-		resultedFeatures.process(new DebugFeatures("F Resulted feature", true, false));
+		//resultedFeatures.process(new DebugFeatures("F Resulted feature", true, false));
 		DataStream<Tuple2<Integer, String>> pointsToResultTable = resultedFeatures.map(new FeatureToTupleFunction());
 		pointsToResultTable.map(t->1).process(new Counter("Points to result table"));
 		//tEnv.toDataStream(data).map(t->1).process(new Counter("Original data"));

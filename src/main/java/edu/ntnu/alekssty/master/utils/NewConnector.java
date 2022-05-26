@@ -9,6 +9,7 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 import java.io.File;
 
+// TODO Can replace NSLKDDConnector
 public class NewConnector {
 
     String path;
