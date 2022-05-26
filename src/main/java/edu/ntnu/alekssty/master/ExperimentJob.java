@@ -77,14 +77,7 @@ public class ExperimentJob {
 
 		DataStream<Feature> resultedFeatures = result.get(1);
 		resultedFeatures.process(new DebugFeatures("F Resulted feature", true, false));
-		DataStream<Tuple2<Integer, String>> pointsToResultTable = resultedFeatures.map(new FeatureToTupleFunction());
-		pointsToResultTable.map(t->1).process(new Counter("Points to result table"));
-		//tEnv.toDataStream(data).map(t->1).process(new Counter("Original data"));
-		Table workingTable = tEnv.fromDataStream(pointsToResultTable).as("assigned", "id2")
-				.join(data).where($("id").isEqual($("id2")));
-		tEnv.toDataStream(workingTable).map(t->1).process(new Counter("Working table"));
-		DataStream<Tuple3<String, Integer, String>> readyForCSV = tEnv.toDataStream(workingTable.select($("domain"), $("assigned"), $("cluster")))
-				.map(new PointsToTupleForFileOperator());
+		DataStream<Tuple3<String, Integer, String>> readyForCSV = resultedFeatures.map(new PointsToTupleForFileOperator());
 		readyForCSV.map(t->1).process(new Counter("Ready for CSV"));
 		readyForCSV.writeAsCsv(rootPath + method + "-points.csv", FileSystem.WriteMode.OVERWRITE);
 		//readyForCSV.map(Tuple3::toString).sinkTo(FileSink.forRowFormat(new Path("test"), new SimpleStringEncoder<String>()).withBucketAssigner(new BasePathBucketAssigner<String>()).build());
@@ -104,10 +97,10 @@ public class ExperimentJob {
 		}
 	}
 
-	private static class PointsToTupleForFileOperator implements MapFunction<Row, Tuple3<String, Integer, String>> {
+	private static class PointsToTupleForFileOperator implements MapFunction<Feature, Tuple3<String, Integer, String>> {
 		@Override
-		public Tuple3<String, Integer, String> map(Row row) throws Exception {
-			return Tuple3.of((String)row.getField("domain"), (Integer)row.getField("assigned"), (String)row.getField("cluster"));
+		public Tuple3<String, Integer, String> map(Feature row) throws Exception {
+			return Tuple3.of(row.getDomain(), row.getAssignedClusterID(), row.getLabel());
 		}
 	}
 }

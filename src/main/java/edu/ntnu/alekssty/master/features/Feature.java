@@ -11,5 +11,6 @@ public interface Feature {
     void setFinished();
     String getDomain();
     int getAssignedClusterID();
+    String getLabel();
 
 }

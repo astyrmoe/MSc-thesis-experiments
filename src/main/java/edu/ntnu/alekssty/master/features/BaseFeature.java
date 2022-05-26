@@ -7,11 +7,13 @@ public class BaseFeature extends Point {
 
     public int assignedClusterID;
     public boolean finished;
+    public String label;
 
-    public BaseFeature(DenseVector vector, String domain) {
+    public BaseFeature(DenseVector vector, String domain, String label) {
         super(vector, domain);
         assignedClusterID = -1;
         finished = false;
+        this.label = label;
     }
 
     public DenseVector getVector() {
@@ -25,6 +27,10 @@ public class BaseFeature extends Point {
     public void setFinished() {
         finished = true;
 
+    }
+
+    public String getLabel() {
+        return label;
     }
 
     public String getDomain() {

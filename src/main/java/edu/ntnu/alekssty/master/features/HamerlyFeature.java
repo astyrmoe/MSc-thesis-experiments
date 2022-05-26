@@ -9,8 +9,8 @@ public class HamerlyFeature extends BaseFeature implements Feature{
     double lowerBound;
     double upperBound;
 
-    public HamerlyFeature(DenseVector vector, String domain) {
-        super(vector, domain);
+    public HamerlyFeature(DenseVector vector, String domain, String label) {
+        super(vector, domain, label);
         lowerBound = Double.MAX_VALUE;
         upperBound = Double.MAX_VALUE;
     }

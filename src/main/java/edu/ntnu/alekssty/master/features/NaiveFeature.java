@@ -5,8 +5,8 @@ import org.apache.flink.ml.linalg.DenseVector;
 
 public class NaiveFeature extends BaseFeature implements Feature {
 
-    public NaiveFeature(DenseVector vector, String domain) {
-        super(vector, domain);
+    public NaiveFeature(DenseVector vector, String domain, String label) {
+        super(vector, domain, label);
     }
 
     @Override

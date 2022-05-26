@@ -11,8 +11,8 @@ public class ElkanFeature extends BaseFeature implements Feature {
     public Double upperBound;
     public DenseVector lowerBounds;
 
-    public ElkanFeature(DenseVector vector, String domain) {
-        super(vector, domain);
+    public ElkanFeature(DenseVector vector, String domain, String label) {
+        super(vector, domain, label);
     }
 
     @Override

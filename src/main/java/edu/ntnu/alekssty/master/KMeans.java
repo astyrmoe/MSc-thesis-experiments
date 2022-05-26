@@ -65,7 +65,8 @@ public class KMeans implements KMeansParams<KMeans> {
                 .map(row -> (featureMaker(
                         method,
                         (DenseVector) row.getField("features"),
-                        (String) row.getField("domain")
+                        (String) row.getField("domain"),
+                        (String) row.getField("cluster")
                 )));
 
         DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
@@ -113,20 +114,20 @@ public class KMeans implements KMeansParams<KMeans> {
         );
     }
 
-    private static Feature featureMaker(Methods type, DenseVector features, String domain) throws Exception {
+    private static Feature featureMaker(Methods type, DenseVector features, String domain, String label) throws Exception {
         Feature out;
         switch (type) {
             case ELKAN:
-                out = new ElkanFeature(features, domain);
+                out = new ElkanFeature(features, domain, label);
                 break;
             case PHILIPS:
-                out = new PhilipsPoint(features, domain);
+                out = new PhilipsPoint(features, domain, label);
                 break;
             case NAIVE:
-                out = new NaiveFeature(features, domain);
+                out = new NaiveFeature(features, domain, label);
                 break;
             case HAMERLY:
-                out = new HamerlyFeature(features, domain);
+                out = new HamerlyFeature(features, domain, label);
                 break;
 /*
             case DRAKE:
