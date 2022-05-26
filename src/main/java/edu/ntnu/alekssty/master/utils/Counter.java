@@ -6,8 +6,8 @@ import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 
 public class Counter extends ProcessFunction<Integer, Integer> {
-    String title;
-    IntCounter counter = new IntCounter();
+    final String title;
+    final IntCounter counter = new IntCounter();
 
     @Override
     public void open(Configuration parameters) throws Exception {

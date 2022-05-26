@@ -17,8 +17,8 @@ import static org.apache.flink.table.api.Expressions.call;
 
 public class NSLKDDConnector {
 
-    String path;
-    StreamTableEnvironment tEnv;
+    final String path;
+    final StreamTableEnvironment tEnv;
 
     public NSLKDDConnector(String path, StreamTableEnvironment tEnv) {
         this.path = path;

@@ -7,7 +7,7 @@ public class BaseCentroid extends Point {
 
     boolean finished;
     double movement;
-    int ID;
+    final int ID;
 
     public BaseCentroid(DenseVector vector, int ID, String domain) {
         super(vector, domain);

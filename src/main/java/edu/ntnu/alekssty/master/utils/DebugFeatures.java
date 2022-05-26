@@ -8,12 +8,12 @@ import org.apache.flink.util.Collector;
 
 public class DebugFeatures extends ProcessFunction<Feature, Feature> {
 
-    IntCounter accFeatures =new IntCounter();
+    final IntCounter accFeatures =new IntCounter();
 
-    String domainFilter;
-    String title;
-    boolean acc;
-    boolean print;
+    final String domainFilter;
+    final String title;
+    final boolean acc;
+    final boolean print;
 
     public DebugFeatures(String title, boolean acc, boolean print, String domainFilter) {
         this.domainFilter = domainFilter;

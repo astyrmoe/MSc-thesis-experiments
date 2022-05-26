@@ -8,12 +8,12 @@ import org.apache.flink.util.Collector;
 
 public class DebugCentorids extends ProcessFunction<Centroid[], Centroid[]> {
 
-    IntCounter accCentroids=new IntCounter();
-    IntCounter accDomains = new IntCounter();
+    final IntCounter accCentroids=new IntCounter();
+    final IntCounter accDomains = new IntCounter();
 
-    String domainFilter;
-    String title;
-    boolean acc;
+    final String domainFilter;
+    final String title;
+    final boolean acc;
     boolean print;
 
     public DebugCentorids(String title, boolean acc, boolean print, String domainFilter) {

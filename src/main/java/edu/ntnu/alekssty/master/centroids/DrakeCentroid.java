@@ -9,7 +9,7 @@ public class DrakeCentroid extends BaseCentroid implements Centroid {
     }
 
     @Override
-    public void update(Centroid[] centorids) {
+    public void update(Centroid[] centroids) {
 
     }
 }

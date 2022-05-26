@@ -22,7 +22,6 @@ import edu.ntnu.alekssty.master.centroids.Centroid;
 import edu.ntnu.alekssty.master.features.Feature;
 import edu.ntnu.alekssty.master.utils.FeatureToTupleFunction;
 import edu.ntnu.alekssty.master.utils.NSLKDDConnector;
-import edu.ntnu.alekssty.master.utils.DebugFeatures;
 import edu.ntnu.alekssty.master.utils.Counter;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.functions.FlatMapFunction;
@@ -87,7 +86,6 @@ public class ExperimentJob {
 				.map(new PointsToTupleForFileOperator());
 		readyForCSV.map(t->1).process(new Counter("Ready for CSV"));
 		readyForCSV.writeAsCsv(rootPath + method + "-points.csv", FileSystem.WriteMode.OVERWRITE);
-		//readyForCSV.map(Tuple3::toString).sinkTo(FileSink.forRowFormat(new Path("test"), new SimpleStringEncoder<String>()).withBucketAssigner(new BasePathBucketAssigner<String>()).build());
 
 		//System.out.println("PARAMETES:\n" + parameter);
 		//System.out.println("EXEC PLAN:\n" + env.getExecutionPlan());

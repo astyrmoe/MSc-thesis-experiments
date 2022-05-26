@@ -2,8 +2,6 @@ package edu.ntnu.alekssty.master;
 
 import edu.ntnu.alekssty.master.centroids.*;
 import edu.ntnu.alekssty.master.features.*;
-import edu.ntnu.alekssty.master.utils.DebugCentorids;
-import edu.ntnu.alekssty.master.utils.DebugFeatures;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.api.common.functions.*;
@@ -24,7 +22,6 @@ import org.apache.flink.ml.param.Param;
 import org.apache.flink.ml.util.ParamUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
@@ -121,25 +118,26 @@ public class KMeans implements KMeansParams<KMeans> {
         return out;
     }
 
+    // TODO WHAT DIS?
     private static SingleOutputStreamOperator<Centroid[]> temp(DataStream<Feature> points, int k, long seed, Methods type) {
         return points.keyBy(Feature::getDomain).window(EndOfStreamWindows.get()).process(new ProcessWindowFunction<Feature, Centroid[], String, TimeWindow>() {
-            IntCounter accNumFeaturesToCentroid = new IntCounter();
-            IntCounter accNumDomainsToCentoird = new IntCounter();
-            IntCounter accNumberOfSmallDomains = new IntCounter();
-            IntCounter accNumberOfLargeDomains = new IntCounter();
+            final IntCounter accNumFeaturesToCentroid = new IntCounter();
+            final IntCounter accNumDomainsToCentroid = new IntCounter();
+            final IntCounter accNumberOfSmallDomains = new IntCounter();
+            final IntCounter accNumberOfLargeDomains = new IntCounter();
 
             @Override
             public void open(Configuration parameters) throws Exception {
                 super.open(parameters);
                 getRuntimeContext().addAccumulator("features-into-select-centroid", accNumFeaturesToCentroid);
-                getRuntimeContext().addAccumulator("domains-into-select-centroid", accNumDomainsToCentoird);
+                getRuntimeContext().addAccumulator("domains-into-select-centroid", accNumDomainsToCentroid);
                 getRuntimeContext().addAccumulator("small-domains", accNumberOfSmallDomains);
                 getRuntimeContext().addAccumulator("large-domains", accNumberOfLargeDomains);
             }
 
             @Override
             public void process(String s, ProcessWindowFunction<Feature, Centroid[], String, TimeWindow>.Context context, Iterable<Feature> iterable, Collector<Centroid[]> collector) throws Exception {
-                accNumDomainsToCentoird.add(1);
+                accNumDomainsToCentroid.add(1);
                 List<Feature> vectors = new ArrayList<>();
                 for (Feature feature : iterable) {
                     accNumFeaturesToCentroid.add(1);
@@ -265,7 +263,7 @@ public class KMeans implements KMeansParams<KMeans> {
     private static class UpdatePoints extends BroadcastProcessFunction<Feature, Centroid[], Feature> {
 
         Map<String, List<Feature>> buffer;
-        MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
+        final MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
                 String.class,
                 Centroid[].class);
@@ -389,7 +387,7 @@ public class KMeans implements KMeansParams<KMeans> {
     private static class CentroidUpdater extends BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]> {
 
         Map<String, Tuple3<String, Integer, DenseVector>[]> buffer;
-        MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
+        final MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
                 String.class,
                 Centroid[].class);
@@ -441,7 +439,7 @@ public class KMeans implements KMeansParams<KMeans> {
 
     private static class CentroidFilterFunction implements FilterFunction<Centroid[]> {
 
-        boolean giveFinished;
+        final boolean giveFinished;
 
         public CentroidFilterFunction(boolean giveFinished) {
             this.giveFinished = giveFinished;
@@ -465,7 +463,7 @@ public class KMeans implements KMeansParams<KMeans> {
 
     private static class FeatureFilterFunction implements FilterFunction<Feature> {
 
-        boolean giveFinished;
+        final boolean giveFinished;
 
         public FeatureFilterFunction(boolean giveFinished) {
             this.giveFinished = giveFinished;
@@ -482,8 +480,8 @@ public class KMeans implements KMeansParams<KMeans> {
 
     private static class KMeansIterationBody implements IterationBody {
 
-        int k;
-        MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
+        final int k;
+        final MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
                 String.class,
                 Centroid[].class);
@@ -517,7 +515,7 @@ public class KMeans implements KMeansParams<KMeans> {
                     .process(new UpdatePoints()).name("Update Points");
             //newPoints.process(new DebugFeatures("F New point", false, false));
 
-            DataStream<Centroid[]> finalCentroids = centroids.filter(new CentroidFilterFunction(true)).name("Filter finished centorids");
+            DataStream<Centroid[]> finalCentroids = centroids.filter(new CentroidFilterFunction(true)).name("Filter finished centroids");
             DataStream<Feature> finalPoints = newPoints.filter(new FeatureFilterFunction(true)).name("Filter finished points");
             //finalPoints.process(new DebugFeatures("F Final point filter", false, false));
 

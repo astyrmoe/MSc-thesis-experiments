@@ -1,13 +1,12 @@
 package edu.ntnu.alekssty.master;
 
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.ml.common.distance.DistanceMeasure;
 import org.apache.flink.ml.linalg.DenseVector;
 
 public class Point {
 
     public DenseVector vector;
-    public String domain;
+    public final String domain;
 
     @Override
     public String toString() {

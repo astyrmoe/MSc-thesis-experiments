@@ -1,26 +1,19 @@
 package edu.ntnu.alekssty.master.dataoperations;
 
 import edu.ntnu.alekssty.master.utils.NSLKDDConnector;
-import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.core.fs.FileSystem;
-import org.apache.flink.ml.common.datastream.EndOfStreamWindows;
-import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.Collector;
-
-import static org.apache.flink.table.api.Expressions.$;
 
 public class TestDuplicates {
 
@@ -51,7 +44,7 @@ public class TestDuplicates {
 
             @Override
             public void open(Configuration parameters) throws Exception {
-                ValueStateDescriptor<Row> desc = new ValueStateDescriptor<Row>(
+                ValueStateDescriptor<Row> desc = new ValueStateDescriptor<>(
                         "already",
                         TypeInformation.of(Row.class),
                         null
