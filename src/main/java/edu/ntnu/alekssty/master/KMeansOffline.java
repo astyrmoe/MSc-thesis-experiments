@@ -34,10 +34,10 @@ import org.apache.flink.util.OutputTag;
 
 import java.util.*;
 
-public class KMeans implements KMeansParams<KMeans> {
+public class KMeansOffline implements KMeansParams<KMeansOffline> {
     private final Map<Param<?>, Object> paramMap = new HashMap<>();
 
-    public KMeans() {
+    public KMeansOffline() {
         ParamUtils.initializeMapWithDefaultValues(paramMap, this);
     }
 
@@ -279,12 +279,16 @@ public class KMeans implements KMeansParams<KMeans> {
                 buffer.get(domain).add(feature);
                 return;
             }
-            if (finishedCentroids(state.get(domain))) {
+            updateFeature(feature, state.get(domain), collector);
+        }
+
+        private void updateFeature(Feature feature, Centroid[] centroids, Collector<Feature> collector) {
+            if (finishedCentroids(centroids)) {
                 feature.setFinished();
                 collector.collect(feature);
                 return;
             }
-            feature.update(state.get(domain));
+            feature.update(centroids);
             collector.collect(feature);
         }
 
@@ -306,13 +310,7 @@ public class KMeans implements KMeansParams<KMeans> {
             state.put(domain, centroids);
             if (buffer.containsKey(domain)) {
                 for (Feature feature : buffer.get(domain)) {
-                    if (finishedCentroids(centroids)) {
-                        feature.setFinished();
-                        collector.collect(feature);
-                        continue;
-                    }
-                    feature.update(centroids);
-                    collector.collect(feature);
+                    updateFeature(feature, centroids, collector);
                 }
                 buffer.remove(domain);
             }

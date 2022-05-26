@@ -4,6 +4,7 @@ import org.apache.flink.ml.linalg.DenseVector;
 
 public class ElkanCentroid extends BaseCentroid implements Centroid {
 
+    // TODO Is this one used by anything else than find 2nd closest?
     public DenseVector distanceToOtherCentroids;
 
     public ElkanCentroid(DenseVector vector, int ID, String domain) {

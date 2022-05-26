@@ -44,17 +44,6 @@ public class ElkanFeature extends BaseFeature implements Feature {
             }
             return;
         }
-        boolean allCentroidsFinished = true;
-        for (Centroid centroid : centroids) {
-            if (centroid.getMovement() != 0) {
-                allCentroidsFinished = false;
-                break;
-            }
-        }
-        if (allCentroidsFinished) {
-            this.finished = true;
-            return;
-        }
         for (int j = 0; j < k; j++) {
             this.lowerBounds.values[j] = max(this.lowerBounds.values[j] - centroids[j].getMovement(), 0);
         }

@@ -59,7 +59,7 @@ public class ExperimentJob {
 		NSLKDDConnector source = new NSLKDDConnector(path, tEnv);
 		source.connect();
 
-		KMeans engine = new KMeans()
+		KMeansOffline engine = new KMeansOffline()
 				.setK(k)
 				.setMaxIter(20);
 

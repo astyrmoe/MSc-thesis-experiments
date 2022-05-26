@@ -11,17 +11,6 @@ public class NaiveFeature extends BaseFeature implements Feature {
 
     @Override
     public void update(Centroid[] centroids) {
-        boolean allCentroidsFinished = true;
-        for (Centroid naiveCentroid : centroids) {
-            if (naiveCentroid.getMovement() != 0) {
-                allCentroidsFinished = false;
-                break;
-            }
-        }
-        if (allCentroidsFinished) {
-            this.finished = true;
-            return;
-        }
         double minDistance = Double.MAX_VALUE;
         int closestCentroidId = -1;
         for (Centroid naiveCentroid : centroids) {
