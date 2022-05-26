@@ -282,6 +282,9 @@ public class KMeans implements KMeansParams<KMeans> {
 
     private static class UpdatePoints extends BroadcastProcessFunction<Feature, Centroid[], Feature> {
 
+        IntCounter distCalcAcc = new IntCounter();
+        int iteration;
+
         Map<String, List<Feature>> buffer;
         MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
@@ -304,7 +307,8 @@ public class KMeans implements KMeansParams<KMeans> {
                 collector.collect(feature);
                 return;
             }
-            feature.update(state.get(domain));
+            int distCalcs = feature.update(state.get(domain));
+            distCalcAcc.add(distCalcs);
             collector.collect(feature);
         }
 
@@ -331,7 +335,8 @@ public class KMeans implements KMeansParams<KMeans> {
                         collector.collect(feature);
                         continue;
                     }
-                    feature.update(centroids);
+                    int distCalcs = feature.update(centroids);
+                    distCalcAcc.add(distCalcs);
                     collector.collect(feature);
                 }
                 buffer.remove(domain);
@@ -347,6 +352,8 @@ public class KMeans implements KMeansParams<KMeans> {
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
+            iteration = new Random().nextInt(10000);
+            getRuntimeContext().addAccumulator("distance-calculations-p"+iteration, distCalcAcc);
             //getRuntimeContext().addAccumulator("number-of-points-in-iteration", numFeaturesInUpdatePoints);
             buffer = new HashMap<>();
         }
@@ -407,6 +414,8 @@ public class KMeans implements KMeansParams<KMeans> {
 
     private static class CentroidUpdater extends BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]> {
 
+        IntCounter distCalcAcc = new IntCounter();
+        int iteration;
         Map<String, Tuple3<String, Integer, DenseVector>[]> buffer;
         MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
@@ -429,13 +438,15 @@ public class KMeans implements KMeansParams<KMeans> {
             for (Centroid Centroid : centroids) {
                 for (Tuple3<String, Integer, DenseVector> tuple3 : tuple3s) {
                     if (tuple3.f1 == Centroid.getID()) {
-                        Centroid.move(tuple3.f2);
+                        int distCalcs = Centroid.move(tuple3.f2);
+                        distCalcAcc.add(distCalcs);
                         break;
                     }
                 }
             }
             for (Centroid Centroid : centroids) {
-                Centroid.update(centroids);
+                int distCalcs = Centroid.update(centroids);
+                distCalcAcc.add(distCalcs);
             }
             collector.collect(centroids);
         }
@@ -455,6 +466,8 @@ public class KMeans implements KMeansParams<KMeans> {
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
             buffer = new HashMap<>();
+            iteration = new Random().nextInt(10000);
+            getRuntimeContext().addAccumulator("distance-calculations-c"+iteration, distCalcAcc);
         }
     }
 

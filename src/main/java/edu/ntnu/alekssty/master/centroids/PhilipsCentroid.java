@@ -18,7 +18,7 @@ public class PhilipsCentroid extends BaseCentroid implements Centroid {
     }
 
     @Override
-    public void update(Centroid[] centroids) {
+    public int update(Centroid[] centroids) {
         distToOthers = new DenseVector(centroids.length);
         for (int i = 0; i < centroids.length; i ++) {
             if (i == this.ID) {
@@ -27,5 +27,6 @@ public class PhilipsCentroid extends BaseCentroid implements Centroid {
             }
             distToOthers.values[i] = distance(centroids[i].getVector());
         }
+        return giveDistCalcAccAndReset();
     }
 }

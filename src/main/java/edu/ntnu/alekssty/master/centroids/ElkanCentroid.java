@@ -11,7 +11,7 @@ public class ElkanCentroid extends BaseCentroid implements Centroid {
     }
 
     @Override
-    public void update(Centroid[] centroids) {
+    public int update(Centroid[] centroids) {
         if (distanceToOtherCentroids == null) {
             distanceToOtherCentroids = new DenseVector(centroids.length);
             distanceToOtherCentroids.values[this.ID] = 0;
@@ -23,6 +23,7 @@ public class ElkanCentroid extends BaseCentroid implements Centroid {
             distanceToOtherCentroids.values[c.getID()] = dist;
             ((ElkanCentroid)c).updateDistanceToMe(this.ID, dist, centroids.length);
         }
+        return giveDistCalcAccAndReset();
     }
 
     private void updateDistanceToMe(int id, double dist, int k) {

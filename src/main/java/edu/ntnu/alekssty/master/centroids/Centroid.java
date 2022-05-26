@@ -4,8 +4,8 @@ import org.apache.flink.ml.linalg.DenseVector;
 
 public interface Centroid {
 
-    void move(DenseVector vector);
-    void update(Centroid[] centorids);
+    int move(DenseVector vector);
+    int update(Centroid[] centorids);
     String getDomain();
     boolean isFinished();
     double getMovement();

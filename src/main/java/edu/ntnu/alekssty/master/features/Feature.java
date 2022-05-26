@@ -5,7 +5,7 @@ import org.apache.flink.ml.linalg.DenseVector;
 
 public interface Feature {
 
-    void update(Centroid[] centroids);
+    int update(Centroid[] centroids);
     DenseVector getVector();
     boolean isFinished();
     void setFinished();

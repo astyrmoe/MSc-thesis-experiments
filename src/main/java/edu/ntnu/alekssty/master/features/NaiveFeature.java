@@ -10,7 +10,7 @@ public class NaiveFeature extends BaseFeature implements Feature {
     }
 
     @Override
-    public void update(Centroid[] centroids) {
+    public int update(Centroid[] centroids) {
         boolean allCentroidsFinished = true;
         for (Centroid naiveCentroid : centroids) {
             if (naiveCentroid.getMovement() != 0) {
@@ -20,7 +20,7 @@ public class NaiveFeature extends BaseFeature implements Feature {
         }
         if (allCentroidsFinished) {
             this.finished = true;
-            return;
+            return giveDistCalcAccAndReset();
         }
         double minDistance = Double.MAX_VALUE;
         int closestCentroidId = -1;
@@ -32,5 +32,6 @@ public class NaiveFeature extends BaseFeature implements Feature {
             }
         }
         assignedClusterID = closestCentroidId;
+        return giveDistCalcAccAndReset();
     }
 }

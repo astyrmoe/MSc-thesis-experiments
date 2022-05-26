@@ -16,7 +16,7 @@ public class HamerlyFeature extends BaseFeature implements Feature{
     }
 
     @Override
-    public void update(Centroid[] centroids) {
+    public int update(Centroid[] centroids) {
         if (assignedClusterID == -1) {
             assignedClusterID = 0;
         }
@@ -30,11 +30,11 @@ public class HamerlyFeature extends BaseFeature implements Feature{
         lowerBound = lowerBound - biggestMovement;
         double z = Double.max(lowerBound, ((HamerlyCentroid)centroids[assignedClusterID]).getHalfDistToSecondClosest());
         if (upperBound <= z) {
-            return;
+            return giveDistCalcAccAndReset();
         }
         upperBound = distance(centroids[assignedClusterID].getVector());
         if (upperBound <= z) {
-            return;
+            return giveDistCalcAccAndReset();
         }
         double bestDist = Double.MAX_VALUE;
         double secBestDist = Double.MAX_VALUE;
@@ -59,5 +59,6 @@ public class HamerlyFeature extends BaseFeature implements Feature{
             upperBound = distance(centroids[assignedClusterID].getVector());
         }
         lowerBound = distance(centroids[secBestC].getVector());
+        return giveDistCalcAccAndReset();
     }
 }

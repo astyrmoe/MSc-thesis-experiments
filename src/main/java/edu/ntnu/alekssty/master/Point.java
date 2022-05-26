@@ -8,6 +8,7 @@ public class Point {
 
     public DenseVector vector;
     public String domain;
+    public int accDistCalc;
 
     @Override
     public String toString() {
@@ -20,9 +21,17 @@ public class Point {
     public Point(DenseVector vector, String domain) {
         this.vector = vector;
         this.domain = domain;
+        accDistCalc = 0;
     }
 
     public double distance(DenseVector vector) {
+        accDistCalc++;
         return DistanceMeasure.getInstance("euclidean").distance(vector, this.vector);
+    }
+
+    public int giveDistCalcAccAndReset() {
+        int t = accDistCalc;
+        accDistCalc = 0;
+        return t;
     }
 }

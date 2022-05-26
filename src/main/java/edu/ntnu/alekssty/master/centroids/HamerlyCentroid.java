@@ -11,7 +11,7 @@ public class HamerlyCentroid extends BaseCentroid implements Centroid {
     }
 
     @Override
-    public void update(Centroid[] centorids) {
+    public int update(Centroid[] centorids) {
         double minDist = Double.MAX_VALUE;
         for (Centroid c : centorids) {
             if (distance(c.getVector()) < minDist && c.getID() != this.ID) {
@@ -19,6 +19,7 @@ public class HamerlyCentroid extends BaseCentroid implements Centroid {
             }
         }
         halfDistToSecClosest = minDist / 2;
+        return giveDistCalcAccAndReset();
     }
 
     public double getHalfDistToSecondClosest() {

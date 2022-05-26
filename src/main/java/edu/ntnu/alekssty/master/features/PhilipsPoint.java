@@ -11,7 +11,7 @@ public class PhilipsPoint extends BaseFeature implements Feature {
     }
 
     @Override
-    public void update(Centroid[] centroids) {
+    public int update(Centroid[] centroids) {
         double minDistance = Double.MAX_VALUE;
         int closestCentroidId = -1;
         for (int i = 0; i < centroids.length; i++) {
@@ -28,5 +28,6 @@ public class PhilipsPoint extends BaseFeature implements Feature {
                 assignedClusterID = closestCentroidId;
             }
         }
+        return giveDistCalcAccAndReset();
     }
 }

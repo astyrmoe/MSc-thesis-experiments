@@ -16,9 +16,10 @@ public class BaseCentroid extends Point {
         this.finished = false;
     }
 
-    public void move(DenseVector vector) {
+    public int move(DenseVector vector) {
         this.movement = distance(vector);
         this.vector = vector;
+        return giveDistCalcAccAndReset();
     }
 
     public String getDomain() {

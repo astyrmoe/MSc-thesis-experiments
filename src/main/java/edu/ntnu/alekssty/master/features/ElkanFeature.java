@@ -16,7 +16,7 @@ public class ElkanFeature extends BaseFeature implements Feature {
     }
 
     @Override
-    public void update(Centroid[] centroids) {
+    public int update(Centroid[] centroids) {
         int k = centroids.length;
         if (assignedClusterID == -1) {
             this.lowerBounds = new DenseVector(k);
@@ -42,7 +42,7 @@ public class ElkanFeature extends BaseFeature implements Feature {
                     }
                 }
             }
-            return;
+            return giveDistCalcAccAndReset();
         }
         boolean allCentroidsFinished = true;
         for (Centroid centorid : centroids) {
@@ -53,7 +53,7 @@ public class ElkanFeature extends BaseFeature implements Feature {
         }
         if (allCentroidsFinished) {
             this.finished = true;
-            return;
+            return giveDistCalcAccAndReset();
         }
         for (int j = 0; j < k; j++) {
             this.lowerBounds.values[j] = max(this.lowerBounds.values[j] - centroids[j].getMovement(), 0);
@@ -62,7 +62,7 @@ public class ElkanFeature extends BaseFeature implements Feature {
         boolean updateUb = true;
         double d1, d2 = 0;
         if (this.upperBound <= centroids[this.assignedClusterID].distance(centroids[((ElkanCentroid) centroids[this.assignedClusterID]).findOtherCloseCentroidID()].getVector())) {
-            return;
+            return giveDistCalcAccAndReset();
         }
         for (int j = 0; j < k; j++) {
             if (j != this.assignedClusterID && this.upperBound > this.lowerBounds.values[j] && this.upperBound > 0.5 * centroids[this.assignedClusterID].distance(centroids[j].getVector())) {
@@ -84,5 +84,6 @@ public class ElkanFeature extends BaseFeature implements Feature {
                 }
             }
         }
+        return giveDistCalcAccAndReset();
     }
 }

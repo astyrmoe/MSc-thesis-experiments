@@ -9,6 +9,7 @@ public class NaiveCentroid extends BaseCentroid implements Centroid {
     }
 
     @Override
-    public void update(Centroid[] centroids) {
+    public int update(Centroid[] centroids) {
+        return giveDistCalcAccAndReset();
     }
 }
