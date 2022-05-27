@@ -19,8 +19,8 @@
 package edu.ntnu.alekssty.master;
 
 import edu.ntnu.alekssty.master.centroids.Centroid;
-import edu.ntnu.alekssty.master.features.Feature;
-import edu.ntnu.alekssty.master.utils.FeatureToTupleFunction;
+import edu.ntnu.alekssty.master.points.Point;
+import edu.ntnu.alekssty.master.utils.PointToTupleFunction;
 import edu.ntnu.alekssty.master.utils.NSLKDDConnector;
 import edu.ntnu.alekssty.master.utils.Counter;
 import org.apache.flink.api.common.JobExecutionResult;
@@ -74,9 +74,9 @@ public class ExperimentJob {
 				.flatMap(new CentroidToTupleForFileOperator()).name("Make centroids csv-ready")
 				.writeAsCsv(rootPath + method+"-centroids.csv", FileSystem.WriteMode.OVERWRITE);
 
-		DataStream<Feature> resultedFeatures = result.get(1);
+		DataStream<Point> resultedFeatures = result.get(1);
 		//resultedFeatures.process(new DebugFeatures("F Resulted feature", true, false));
-		DataStream<Tuple2<Integer, String>> pointsToResultTable = resultedFeatures.map(new FeatureToTupleFunction());
+		DataStream<Tuple2<Integer, String>> pointsToResultTable = resultedFeatures.map(new PointToTupleFunction());
 		pointsToResultTable.map(t->1).process(new Counter("Points to result table"));
 		//tEnv.toDataStream(data).map(t->1).process(new Counter("Original data"));
 		Table workingTable = tEnv.fromDataStream(pointsToResultTable).as("assigned", "id2")

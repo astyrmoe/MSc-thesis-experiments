@@ -1,9 +1,9 @@
 package edu.ntnu.alekssty.master.centroids;
 
-import edu.ntnu.alekssty.master.Point;
+import edu.ntnu.alekssty.master.AbstractPoint;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class BaseCentroid extends Point {
+public class BaseCentroid extends AbstractPoint {
 
     boolean finished;
     double movement;

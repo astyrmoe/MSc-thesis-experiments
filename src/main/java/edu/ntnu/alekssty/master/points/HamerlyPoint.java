@@ -1,15 +1,15 @@
-package edu.ntnu.alekssty.master.features;
+package edu.ntnu.alekssty.master.points;
 
 import edu.ntnu.alekssty.master.centroids.Centroid;
 import edu.ntnu.alekssty.master.centroids.HamerlyCentroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class HamerlyFeature extends BaseFeature implements Feature{
+public class HamerlyPoint extends BasePoint implements Point {
 
     double lowerBound;
     double upperBound;
 
-    public HamerlyFeature(DenseVector vector, String domain) {
+    public HamerlyPoint(DenseVector vector, String domain) {
         super(vector, domain);
         lowerBound = Double.MAX_VALUE;
         upperBound = Double.MAX_VALUE;

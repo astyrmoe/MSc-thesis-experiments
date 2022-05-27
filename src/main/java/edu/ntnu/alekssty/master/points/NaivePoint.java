@@ -1,11 +1,11 @@
-package edu.ntnu.alekssty.master.features;
+package edu.ntnu.alekssty.master.points;
 
 import edu.ntnu.alekssty.master.centroids.Centroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class NaiveFeature extends BaseFeature implements Feature {
+public class NaivePoint extends BasePoint implements Point {
 
-    public NaiveFeature(DenseVector vector, String domain) {
+    public NaivePoint(DenseVector vector, String domain) {
         super(vector, domain);
     }
 

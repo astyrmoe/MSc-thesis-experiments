@@ -1,4 +1,4 @@
-package edu.ntnu.alekssty.master.features;
+package edu.ntnu.alekssty.master.points;
 
 import edu.ntnu.alekssty.master.centroids.Centroid;
 import edu.ntnu.alekssty.master.centroids.ElkanCentroid;
@@ -6,12 +6,12 @@ import org.apache.flink.ml.linalg.DenseVector;
 
 import static java.lang.Double.max;
 
-public class ElkanFeature extends BaseFeature implements Feature {
+public class ElkanPoint extends BasePoint implements Point {
 
     public Double upperBound;
     public DenseVector lowerBounds;
 
-    public ElkanFeature(DenseVector vector, String domain) {
+    public ElkanPoint(DenseVector vector, String domain) {
         super(vector, domain);
     }
 

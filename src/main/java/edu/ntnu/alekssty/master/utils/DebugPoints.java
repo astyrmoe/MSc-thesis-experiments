@@ -1,28 +1,28 @@
 package edu.ntnu.alekssty.master.utils;
 
-import edu.ntnu.alekssty.master.features.Feature;
+import edu.ntnu.alekssty.master.points.Point;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 
-public class DebugFeatures extends ProcessFunction<Feature, Feature> {
+public class DebugPoints extends ProcessFunction<Point, Point> {
 
-    final IntCounter accFeatures =new IntCounter();
+    final IntCounter accPoints =new IntCounter();
 
     final String domainFilter;
     final String title;
     final boolean acc;
     final boolean print;
 
-    public DebugFeatures(String title, boolean acc, boolean print, String domainFilter) {
+    public DebugPoints(String title, boolean acc, boolean print, String domainFilter) {
         this.domainFilter = domainFilter;
         this.title = title;
         this.acc = acc;
         this.print = print;
     }
 
-    public DebugFeatures(String title, boolean acc, boolean print) {
+    public DebugPoints(String title, boolean acc, boolean print) {
         this.domainFilter = null;
         this.title = title;
         this.acc = acc;
@@ -34,14 +34,15 @@ public class DebugFeatures extends ProcessFunction<Feature, Feature> {
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
         if (acc) {
-            getRuntimeContext().addAccumulator(title + "-features", accFeatures);
+            getRuntimeContext().addAccumulator(title + "-features", accPoints);
         }
     }
 
     @Override
-    public void processElement(Feature feature, ProcessFunction<Feature, Feature>.Context context, Collector<Feature> collector) throws Exception {
-        if (domainFilter != null && !feature.getDomain().equals(domainFilter)) {return;}
-        if (acc) {accFeatures.add(1);}
-        if (print) {System.out.println(title + " - " + feature);}
+    public void processElement(Point point, ProcessFunction<Point, Point>.Context context, Collector<Point> collector) throws Exception {
+        if (domainFilter != null && !point.getDomain().equals(domainFilter)) {return;}
+        if (acc) {
+            accPoints.add(1);}
+        if (print) {System.out.println(title + " - " + point);}
     }
 }
