@@ -21,14 +21,6 @@ public class BaseCentroid extends AbstractPoint {
         this.vector = vector;
     }
 
-    public String getDomain() {
-        return domain;
-    }
-
-    public boolean isFinished() {
-        return finished;
-    }
-
     public double getMovement() {
         return movement;
     }
@@ -39,10 +31,6 @@ public class BaseCentroid extends AbstractPoint {
 
     public int getID() {
         return ID;
-    }
-
-    public void setFinished() {
-        finished = true;
     }
 
     @Override

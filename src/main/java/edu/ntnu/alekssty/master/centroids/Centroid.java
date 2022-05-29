@@ -6,11 +6,8 @@ public interface Centroid {
 
     void move(DenseVector vector);
     void update(Centroid[] centroids);
-    String getDomain();
-    boolean isFinished();
     double getMovement();
     DenseVector getVector();
     int getID();
-    void setFinished();
     double distance(DenseVector vector);
 }

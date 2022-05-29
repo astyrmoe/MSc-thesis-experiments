@@ -1,6 +1,8 @@
 package edu.ntnu.alekssty.master;
 
 import edu.ntnu.alekssty.master.centroids.*;
+import edu.ntnu.alekssty.master.domain.BaseDomain;
+import edu.ntnu.alekssty.master.domain.Domain;
 import edu.ntnu.alekssty.master.points.*;
 import edu.ntnu.alekssty.master.points.Point;
 import org.apache.flink.api.common.ExecutionConfig;
@@ -66,7 +68,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                         (String) row.getField("domain")
                 ))).name("FeatureMaker");
 
-        DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
+        DataStream<Domain> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
         //initCentroids.process(new DebugCentorids("C Init centroids", true, false));
 
         IterationConfig config = IterationConfig.newBuilder()
@@ -82,7 +84,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                 body
         );
 
-        DataStream<Centroid[]> iterationResultsCentroids = iterationResult.get(0);
+        DataStream<Domain> iterationResultsCentroids = iterationResult.get(0);
         //iterationResultsCentroids.process(new DebugCentorids("C Iteration result", true, false));
         DataStream<Point> iterationsResultFeatures = iterationResult.get(1);
         //iterationsResultFeatures.process(new DebugFeatures("F Iteration result", true, false));
@@ -208,14 +210,14 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         });
     }
 
-    private static DataStream<Centroid[]> selectRandomCentroids(DataStream<Point> points, int k, long seed, Methods type) {
-        DataStream<Centroid[]> resultStream =
+    private static DataStream<Domain> selectRandomCentroids(DataStream<Point> points, int k, long seed, Methods type) {
+        DataStream<Domain> resultStream =
                 DataStreamUtils.mapPartition(
                         points,
-                        new MapPartitionFunction<Point, Centroid[]>() {
+                        new MapPartitionFunction<Point, Domain>() {
                             @Override
                             public void mapPartition(
-                                    Iterable<Point> iterable, Collector<Centroid[]> out) throws Exception {
+                                    Iterable<Point> iterable, Collector<Domain> out) throws Exception {
                                 Dictionary<String, List<Point>> d = new Hashtable<>();
                                 for (Point vector : iterable) {
                                     if (d.get(vector.getDomain()) == null) {
@@ -253,7 +255,8 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                                                 outArray[i] = new NaiveCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
                                         }
                                     }
-                                    out.collect(outArray);
+                                    Domain domain = new BaseDomain(centroids[0].getDomain(), outArray);
+                                    out.collect(domain);
                                 }
                             }
                         });
@@ -261,13 +264,13 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         return resultStream;
     }
 
-    private static class UpdatePoints extends BroadcastProcessFunction<Point, Centroid[], Point> {
+    private static class UpdatePoints extends BroadcastProcessFunction<Point, Domain, Point> {
 
         Map<String, List<Point>> buffer;
-        final MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
+        final MapStateDescriptor<String, Domain> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
                 String.class,
-                Centroid[].class);
+                Domain.class);
 
         @Override
         public void processElement(Point point, BroadcastProcessFunction<Point, Centroid[], Point>.ReadOnlyContext readOnlyContext, Collector<Point> collector) throws Exception {
