@@ -9,24 +9,34 @@ import org.apache.flink.api.common.functions.*;
 import org.apache.flink.api.common.state.BroadcastState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ReadOnlyBroadcastState;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.iteration.*;
+import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.ml.clustering.kmeans.KMeansParams;
 import org.apache.flink.ml.common.datastream.DataStreamUtils;
 import org.apache.flink.ml.common.datastream.EndOfStreamWindows;
 import org.apache.flink.ml.linalg.DenseVector;
 import org.apache.flink.ml.param.Param;
 import org.apache.flink.ml.util.ParamUtils;
+import org.apache.flink.runtime.checkpoint.CheckpointOptions;
+import org.apache.flink.runtime.jobgraph.OperatorID;
+import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
+import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
+import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.api.internal.TableImpl;
@@ -510,8 +520,13 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
             }).name("Termination criteria");
 
             DataStream<Point> newPoints = points
-                    .connect(centroids.broadcast(centroidStateDescriptor))
-                    .process(new UpdatePoints()).name("Update Points");
+                    .connect(centroids.broadcast())
+                    .transform(
+                            "Update Points",
+                            TypeInformation.of(Point.class),
+                            new UpdatePointNew()
+                    );
+//                    .process(new UpdatePoints()).name("Update Points");
             //newPoints.process(new DebugFeatures("F New point", false, false));
 
             DataStream<Centroid[]> finalCentroids = centroids.filter(new CentroidFilterFunction(true)).name("Filter finished centroids");
@@ -578,6 +593,146 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                     ),
                     terminationCriteria
             );
+        }
+
+        private static class UpdatePointNew extends AbstractStreamOperator<Point>
+                implements TwoInputStreamOperator<Point, Centroid[], Point>, Function,
+                IterationListener<Point> {
+
+            Map<String, Centroid[]> centroids;
+            Map<String, List<Point>> points;
+            List<Point> out;
+
+            @Override
+            public void processElement1(StreamRecord<Point> streamRecord) throws Exception {
+                Point point = streamRecord.getValue();
+                if (centroids.containsKey(point.getDomain())) {
+                    if (finishedCentroids(centroids.get(point.getDomain()))) {
+                        point.setFinished();
+                        out.add(point);
+                        return;
+                    }
+                    point.update(centroids.get(point.getDomain()));
+                    out.add(point);
+                    return;
+                }
+                if (!points.containsKey(point.getDomain())) {
+                    points.put(point.getDomain(), new ArrayList<>());
+                }
+                points.get(point.getDomain()).add(point);
+            }
+
+            @Override
+            public void processElement2(StreamRecord<Centroid[]> streamRecord) throws Exception {
+                Centroid[] centroid = streamRecord.getValue();
+                centroids.put(centroid[0].getDomain(), centroid);
+                if (points.containsKey(centroid[0].getDomain())) {
+                    for (Point point : points.get(centroid[0].getDomain())) {
+                        if (finishedCentroids(centroid)) {
+                            point.setFinished();
+                            out.add(point);
+                            return;
+                        }
+                        point.update(centroid);
+                        out.add(point);
+                    }
+                    points.remove(centroid[0].getDomain());
+                }
+            }
+
+            private boolean finishedCentroids(Centroid[] centroids) {
+                boolean allCentroidsFinished = true;
+                for (Centroid centroid : centroids) {
+                    if (centroid.getMovement() != 0) {
+                        allCentroidsFinished = false;
+                        break;
+                    }
+                }
+                return allCentroidsFinished;
+            }
+
+            @Override
+            public void processWatermark1(Watermark watermark) throws Exception {
+
+            }
+
+            @Override
+            public void processWatermark2(Watermark watermark) throws Exception {
+
+            }
+
+            @Override
+            public void processLatencyMarker1(LatencyMarker latencyMarker) throws Exception {
+
+            }
+
+            @Override
+            public void processLatencyMarker2(LatencyMarker latencyMarker) throws Exception {
+
+            }
+
+            @Override
+            public void open() throws Exception {
+                centroids = new HashMap<>();
+                points = new HashMap<>();
+                out = new ArrayList<>();
+            }
+
+            @Override
+            public void finish() throws Exception {
+
+            }
+
+            @Override
+            public void close() throws Exception {
+
+            }
+
+            @Override
+            public void prepareSnapshotPreBarrier(long l) throws Exception {
+
+            }
+
+            @Override
+            public OperatorMetricGroup getMetricGroup() {
+                return null;
+            }
+
+            @Override
+            public OperatorID getOperatorID() {
+                return null;
+            }
+
+            @Override
+            public void notifyCheckpointComplete(long l) throws Exception {
+
+            }
+
+            @Override
+            public void setCurrentKey(Object o) {
+
+            }
+
+            @Override
+            public Object getCurrentKey() {
+                return null;
+            }
+
+            @Override
+            public void onEpochWatermarkIncremented(int i, Context context, Collector<Point> collector) throws Exception {
+                for (Point point : out) {
+                    collector.collect(point);
+                    out.remove(point);
+                }
+            }
+
+            @Override
+            public void onIterationTerminated(Context context, Collector<Point> collector) throws Exception {
+                for (Point point : out) {
+                    collector.collect(point);
+                    out.remove(point);
+                }
+            }
         }
     }
 }
