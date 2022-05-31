@@ -3,6 +3,8 @@ package edu.ntnu.alekssty.master;
 import edu.ntnu.alekssty.master.centroids.*;
 import edu.ntnu.alekssty.master.points.*;
 import edu.ntnu.alekssty.master.points.Point;
+import edu.ntnu.alekssty.master.utils.DebugCentorids;
+import edu.ntnu.alekssty.master.utils.DebugPoints;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.api.common.functions.*;
@@ -67,7 +69,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                 ))).name("FeatureMaker");
 
         DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
-        //initCentroids.process(new DebugCentorids("C Init centroids", true, false));
+        //initCentroids.process(new DebugCentorids("C Init centroids", true, true));
 
         IterationConfig config = IterationConfig.newBuilder()
                 .setOperatorLifeCycle(IterationConfig.OperatorLifeCycle.PER_ROUND)
@@ -83,9 +85,9 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         );
 
         DataStream<Centroid[]> iterationResultsCentroids = iterationResult.get(0);
-        //iterationResultsCentroids.process(new DebugCentorids("C Iteration result", true, false));
+        iterationResultsCentroids.process(new DebugCentorids("C Iteration result", true, true));
         DataStream<Point> iterationsResultFeatures = iterationResult.get(1);
-        //iterationsResultFeatures.process(new DebugFeatures("F Iteration result", true, false));
+        iterationsResultFeatures.process(new DebugPoints("F Iteration result", true, true));
 
         return DataStreamList.of(
                 iterationResultsCentroids,
@@ -481,9 +483,9 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         @Override
         public IterationBodyResult process(DataStreamList variableStreams, DataStreamList dataStreams) {
             DataStream<Centroid[]> centroids = variableStreams.get(0);
-            //centroids.process(new DebugCentorids("C Into iteration", false, false));
+            //centroids.process(new DebugCentorids("C Into iteration", false, true));
             DataStream<Point> points = variableStreams.get(1);
-            //points.process(new DebugFeatures("F Into iteration", false, false));
+            //points.process(new DebugPoints("F Into iteration", false, true));
 
             DataStream<Integer> terminationCriteria = centroids.flatMap(new FlatMapFunction<Centroid[], Integer>() {
                 @Override
@@ -500,7 +502,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
             DataStream<Point> newPoints = points
                     .connect(centroids.broadcast(centroidStateDescriptor))
                     .process(new UpdatePoints()).name("Update Points");
-            //newPoints.process(new DebugFeatures("F New point", false, false));
+            //newPoints.process(new DebugPoints("F New point", false, true));
 
             DataStream<Centroid[]> finalCentroids = centroids.filter(new CentroidFilterFunction(true)).name("Filter finished centroids");
             DataStream<Point> finalPoints = newPoints.filter(new PointFilterFunction(true)).name("Filter finished points");
@@ -508,7 +510,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
 
             DataStream<Centroid[]> centroidsNotFinished = centroids.filter(new CentroidFilterFunction(false)).name("Filter not finished centroids");
             DataStream<Point> pointsNotFinished = newPoints.filter(new PointFilterFunction(false)).name("Filter not finished points");
-            //pointsNotFinished.process(new DebugFeatures("F Points still with us filter", false, false));
+            //pointsNotFinished.process(new DebugPoints("F Points still with us filter", false, true));
 
             DataStreamList perRoundResults = IterationBody.forEachRound(
                     DataStreamList.of(pointsNotFinished),
@@ -534,6 +536,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
             DataStream<Centroid[]> newCentroids = newCentroidValues
                     .connect(centroidsNotFinished.broadcast(centroidStateDescriptor))
                     .process(new CentroidUpdater()).name("Centroid updater");
+            //newCentroids.process(new DebugCentorids("C New centroids", false, true));
 
             // TODO Move to beginning of next iteration
             DataStream<Centroid[]> cf = newCentroids.map(new MapFunction<Centroid[], Centroid[]>() {

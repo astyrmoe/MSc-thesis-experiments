@@ -6,6 +6,18 @@ import java.util.Arrays;
 
 public class ElkanCentroid extends BaseCentroid implements Centroid {
 
+    @Override
+    public String toString() {
+        return "ElkanCentroid{" +
+                "vector=" + vector +
+                ", finished=" + finished +
+                ", movement=" + movement +
+                ", ID=" + ID +
+                ", distanceToOtherCentroids=" + distanceToOtherCentroids +
+                ", halfDistToClosestCentroid=" + halfDistToClosestCentroid +
+                '}';
+    }
+
     // TODO Is this one used by anything else than find 2nd closest?
     public DenseVector distanceToOtherCentroids;
     public double halfDistToClosestCentroid;
@@ -17,10 +29,7 @@ public class ElkanCentroid extends BaseCentroid implements Centroid {
 
     @Override
     public void update(Centroid[] centroids) {
-        if (distanceToOtherCentroids == null) {
-            distanceToOtherCentroids = new DenseVector(centroids.length);
-            distanceToOtherCentroids.values[this.ID] = 0;
-        }
+        double closestDist = Double.MAX_VALUE;
         for (Centroid c : centroids) {
             if (c.getMovement() == 0 && this.movement == 0) {continue;}
             if (c.getID() <= this.ID) {continue;}
@@ -28,14 +37,15 @@ public class ElkanCentroid extends BaseCentroid implements Centroid {
             distanceToOtherCentroids.values[c.getID()] = dist;
             ((ElkanCentroid)c).updateDistanceToMe(this.ID, dist, centroids.length);
         }
-        halfDistToClosestCentroid = Arrays.stream(distanceToOtherCentroids.values).min().getAsDouble() / 2;
+        for (int i = 0; i < distanceToOtherCentroids.size(); i++) {
+            if (distanceToOtherCentroids.get(i)<closestDist && i!=this.ID) {
+                closestDist = distanceToOtherCentroids.get(i);
+            }
+        }
+        halfDistToClosestCentroid = closestDist / 2;
     }
 
     private void updateDistanceToMe(int id, double dist, int k) {
-        if (distanceToOtherCentroids == null) {
-            distanceToOtherCentroids = new DenseVector(k);
-            distanceToOtherCentroids.values[this.ID] = 0;
-        }
         distanceToOtherCentroids.values[id] = dist;
     }
 

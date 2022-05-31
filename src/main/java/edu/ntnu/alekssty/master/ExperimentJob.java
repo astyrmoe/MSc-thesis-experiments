@@ -20,6 +20,7 @@ package edu.ntnu.alekssty.master;
 
 import edu.ntnu.alekssty.master.centroids.Centroid;
 import edu.ntnu.alekssty.master.points.Point;
+import edu.ntnu.alekssty.master.utils.DebugPoints;
 import edu.ntnu.alekssty.master.utils.PointToTupleFunction;
 import edu.ntnu.alekssty.master.utils.NSLKDDConnector;
 import edu.ntnu.alekssty.master.utils.Counter;
@@ -63,7 +64,7 @@ public class ExperimentJob {
 				.setK(k)
 				.setMaxIter(20);
 
-		Table data = source.getDataTable();//.where($("domain").isEqual("tcpauthSH"));
+		Table data = source.getDataTable();//.where($("domain").isEqual("tcptimeSH"));
 
 		DataStreamList result = engine.fit(data, method);
 
@@ -75,10 +76,10 @@ public class ExperimentJob {
 				.writeAsCsv(rootPath + method+"-centroids.csv", FileSystem.WriteMode.OVERWRITE);
 
 		DataStream<Point> resultedFeatures = result.get(1);
-		//resultedFeatures.process(new DebugFeatures("F Resulted feature", true, false));
+		//resultedFeatures.process(new DebugPoints("F Resulted feature", true, true));
 		DataStream<Tuple2<Integer, String>> pointsToResultTable = resultedFeatures.map(new PointToTupleFunction());
 		pointsToResultTable.map(t->1).process(new Counter("Points to result table"));
-		//tEnv.toDataStream(data).map(t->1).process(new Counter("Original data"));
+		tEnv.toDataStream(data).map(t->1).process(new Counter("Original data"));
 		Table workingTable = tEnv.fromDataStream(pointsToResultTable).as("assigned", "id2")
 				.join(data).where($("id").isEqual($("id2")));
 		tEnv.toDataStream(workingTable).map(t->1).process(new Counter("Working table"));

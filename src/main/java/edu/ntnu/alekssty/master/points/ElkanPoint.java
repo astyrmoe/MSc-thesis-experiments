@@ -10,9 +10,23 @@ public class ElkanPoint extends BasePoint implements Point {
 
     public Double upperBound;
     public DenseVector lowerBounds;
+    public boolean updateUb;
+
+    @Override
+    public String toString() {
+        return "ElkanPoint{" +
+                "vector=" + vector +
+                ", assignedClusterID=" + assignedClusterID +
+                ", finished=" + finished +
+                ", upperBound=" + upperBound +
+                ", lowerBounds=" + lowerBounds +
+                ", updateUb=" + updateUb +
+                '}';
+    }
 
     public ElkanPoint(DenseVector vector, String domain) {
         super(vector, domain);
+        updateUb = true;
     }
 
     @Override
@@ -20,18 +34,14 @@ public class ElkanPoint extends BasePoint implements Point {
         int k = centroids.length;
         if (assignedClusterID == -1) {
             this.lowerBounds = new DenseVector(k);
+            boolean[] skipStatus = new boolean[k];
             for (int i =0;i<k;i++) {
                 this.lowerBounds.values[i] = 0;
+                skipStatus[i] = false;
             }
             double minDistance = Double.MAX_VALUE;
-            boolean[] skipStatus = new boolean[k];
             for (int j = 0; j < k; j++) {
-                skipStatus[j] = false;
-            }
-            for (int j = 0; j < k; j++) {
-                if (skipStatus[j]) {
-                    continue;
-                }
+                if (skipStatus[j]) {continue;}
                 double distance = distance(centroids[j].getVector());
                 this.lowerBounds.values[j] = distance;
                 if (distance < minDistance) {
@@ -60,7 +70,7 @@ public class ElkanPoint extends BasePoint implements Point {
             this.lowerBounds.values[j] = max(this.lowerBounds.values[j] - centroids[j].getMovement(), 0);
         }
         this.upperBound = this.upperBound + centroids[this.assignedClusterID].getMovement();
-        boolean updateUb = true;
+        updateUb = true;
         if (this.upperBound <= ((ElkanCentroid) centroids[this.assignedClusterID]).halfDistToClosestCentroid) {
             return;
         }
@@ -78,7 +88,7 @@ public class ElkanPoint extends BasePoint implements Point {
                 d1 = this.upperBound;
                 if (d1 > this.lowerBounds.values[j] ||
                         d1 > 0.5 * ((ElkanCentroid)centroids[this.assignedClusterID]).distanceToOtherCentroids.get(j)) {
-                    d2 = distance(centroids[this.assignedClusterID].getVector());
+                    d2 = distance(centroids[j].getVector());
                     this.lowerBounds.values[j] = d2;
                     if (d2 < d1) {
                         this.assignedClusterID = j;
