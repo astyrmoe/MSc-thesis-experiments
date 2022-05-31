@@ -2,13 +2,17 @@ package edu.ntnu.alekssty.master.centroids;
 
 import org.apache.flink.ml.linalg.DenseVector;
 
+import java.util.Arrays;
+
 public class ElkanCentroid extends BaseCentroid implements Centroid {
 
     // TODO Is this one used by anything else than find 2nd closest?
     public DenseVector distanceToOtherCentroids;
+    public double halfDistToClosestCentroid;
 
-    public ElkanCentroid(DenseVector vector, int ID, String domain) {
+    public ElkanCentroid(DenseVector vector, int ID, String domain, int k) {
         super(vector, ID, domain);
+        distanceToOtherCentroids = new DenseVector(k);
     }
 
     @Override
@@ -24,6 +28,7 @@ public class ElkanCentroid extends BaseCentroid implements Centroid {
             distanceToOtherCentroids.values[c.getID()] = dist;
             ((ElkanCentroid)c).updateDistanceToMe(this.ID, dist, centroids.length);
         }
+        halfDistToClosestCentroid = Arrays.stream(distanceToOtherCentroids.values).min().getAsDouble() / 2;
     }
 
     private void updateDistanceToMe(int id, double dist, int k) {
@@ -34,15 +39,7 @@ public class ElkanCentroid extends BaseCentroid implements Centroid {
         distanceToOtherCentroids.values[id] = dist;
     }
 
-    public int findOtherCloseCentroidID() {
-        double minValue = Double.MAX_VALUE;
-        int minID = 0;
-        for (int i = 0; i < this.distanceToOtherCentroids.values.length; i ++) {
-            if (i != this.ID && minValue > this.distanceToOtherCentroids.values[i]) {
-                minValue = this.distanceToOtherCentroids.values[i];
-                minID = i;
-            }
-        }
-        return minID;
+    public double findOtherCloseCentroidID() {
+        return halfDistToClosestCentroid;
     }
 }

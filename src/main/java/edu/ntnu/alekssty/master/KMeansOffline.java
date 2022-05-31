@@ -157,7 +157,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                     if (i<k) {
                         switch (type) {
                             case ELKAN:
-                                outArray[i] = new ElkanCentroid(vector.getVector(), i, vector.getDomain());
+                                outArray[i] = new ElkanCentroid(vector.getVector(), i, vector.getDomain(), k);
                                 break;
                             case PHILIPS:
                                 outArray[i] = new PhilipsCentroid(vector.getVector(), i, vector.getDomain());
@@ -229,7 +229,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                                     for (int i = 0; i < k ; i++) {
                                         switch (type) {
                                             case ELKAN:
-                                                outArray[i] = new ElkanCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
+                                                outArray[i] = new ElkanCentroid(centroids[i].getVector(), i, centroids[i].getDomain(), k);
                                                 break;
                                             case PHILIPS:
                                                 outArray[i] = new PhilipsCentroid(centroids[i].getVector(), i, centroids[i].getDomain());

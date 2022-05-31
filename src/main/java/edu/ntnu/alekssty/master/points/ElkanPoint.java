@@ -20,6 +20,9 @@ public class ElkanPoint extends BasePoint implements Point {
         int k = centroids.length;
         if (assignedClusterID == -1) {
             this.lowerBounds = new DenseVector(k);
+            for (int i =0;i<k;i++) {
+                this.lowerBounds.values[i] = 0;
+            }
             double minDistance = Double.MAX_VALUE;
             boolean[] skipStatus = new boolean[k];
             for (int j = 0; j < k; j++) {
@@ -36,7 +39,16 @@ public class ElkanPoint extends BasePoint implements Point {
                     this.upperBound = minDistance;
                     this.assignedClusterID = j;
                     for (int z = j + 1; z < k; z++) {
-                        if (centroids[j].distance(centroids[z].getVector()) >= 2 * distance) {
+                        ElkanCentroid jC = (ElkanCentroid) centroids[j];
+                        double distToZCentroid;
+                        if (jC.distanceToOtherCentroids.get(z) != 0) {
+                            distToZCentroid = jC.distanceToOtherCentroids.get(z);
+                        } else {
+                            distToZCentroid = jC.distance(centroids[z].getVector());
+                            jC.distanceToOtherCentroids.values[z] = distToZCentroid;
+                            ((ElkanCentroid)centroids[z]).distanceToOtherCentroids.values[j] = distToZCentroid;
+                        }
+                        if (distToZCentroid >= 2 * distance) {
                             skipStatus[z] = true;
                         }
                     }
@@ -49,12 +61,14 @@ public class ElkanPoint extends BasePoint implements Point {
         }
         this.upperBound = this.upperBound + centroids[this.assignedClusterID].getMovement();
         boolean updateUb = true;
-        double d1, d2 = 0;
-        if (this.upperBound <= centroids[this.assignedClusterID].distance(centroids[((ElkanCentroid) centroids[this.assignedClusterID]).findOtherCloseCentroidID()].getVector())) {
+        if (this.upperBound <= ((ElkanCentroid) centroids[this.assignedClusterID]).halfDistToClosestCentroid) {
             return;
         }
+        double d1, d2 = 0;
         for (int j = 0; j < k; j++) {
-            if (j != this.assignedClusterID && this.upperBound > this.lowerBounds.values[j] && this.upperBound > 0.5 * centroids[this.assignedClusterID].distance(centroids[j].getVector())) {
+            if (j != this.assignedClusterID &&
+                    this.upperBound > this.lowerBounds.values[j] &&
+                    this.upperBound > 0.5 * ((ElkanCentroid)centroids[this.assignedClusterID]).distanceToOtherCentroids.get(j)) {
                 if (updateUb) {
                     d1 = distance(centroids[this.assignedClusterID].getVector());
                     this.upperBound = d1;
@@ -62,7 +76,8 @@ public class ElkanPoint extends BasePoint implements Point {
                     updateUb = false;
                 }
                 d1 = this.upperBound;
-                if (d1 > this.lowerBounds.values[j] || d1 > centroids[this.assignedClusterID].distance(centroids[j].getVector())) {
+                if (d1 > this.lowerBounds.values[j] ||
+                        d1 > 0.5 * ((ElkanCentroid)centroids[this.assignedClusterID]).distanceToOtherCentroids.get(j)) {
                     d2 = distance(centroids[this.assignedClusterID].getVector());
                     this.lowerBounds.values[j] = d2;
                     if (d2 < d1) {
