@@ -85,9 +85,9 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         );
 
         DataStream<Centroid[]> iterationResultsCentroids = iterationResult.get(0);
-        iterationResultsCentroids.process(new DebugCentorids("C Iteration result", true, true));
+        //iterationResultsCentroids.process(new DebugCentorids("C Iteration result", true, true));
         DataStream<Point> iterationsResultFeatures = iterationResult.get(1);
-        iterationsResultFeatures.process(new DebugPoints("F Iteration result", true, true));
+        //iterationsResultFeatures.process(new DebugPoints("F Iteration result", true, true));
 
         return DataStreamList.of(
                 iterationResultsCentroids,

@@ -12,18 +12,6 @@ public class ElkanPoint extends BasePoint implements Point {
     public DenseVector lowerBounds;
     public boolean updateUb;
 
-    @Override
-    public String toString() {
-        return "ElkanPoint{" +
-                "vector=" + vector +
-                ", assignedClusterID=" + assignedClusterID +
-                ", finished=" + finished +
-                ", upperBound=" + upperBound +
-                ", lowerBounds=" + lowerBounds +
-                ", updateUb=" + updateUb +
-                '}';
-    }
-
     public ElkanPoint(DenseVector vector, String domain) {
         super(vector, domain);
         updateUb = true;
