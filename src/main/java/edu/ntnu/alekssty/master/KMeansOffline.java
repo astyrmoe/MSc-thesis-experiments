@@ -165,12 +165,6 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                             case HAMERLY:
                                 outArray[i] = new HamerlyCentroid(vector.getVector(), i, vector.getDomain());
                                 break;
-                            case DRAKE:
-                                if (k < 3) {
-                                    throw new Exception("k<3 is not allowed");
-                                }
-                                outArray[i] = new DrakeCentroid(vector.getVector(), i, vector.getDomain());
-                                break;
                             default:
                                 outArray[i] = new NaiveCentroid(vector.getVector(), i, vector.getDomain());
                         }
@@ -242,12 +236,6 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                                                 break;
                                             case HAMERLY:
                                                 outArray[i] = new HamerlyCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
-                                                break;
-                                            case DRAKE:
-                                                if (k < 3) {
-                                                    throw new Exception("k<3 is not allowed");
-                                                }
-                                                outArray[i] = new DrakeCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
                                                 break;
                                             default:
                                                 outArray[i] = new NaiveCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
