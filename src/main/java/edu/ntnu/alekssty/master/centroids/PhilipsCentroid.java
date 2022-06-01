@@ -4,30 +4,31 @@ import org.apache.flink.ml.linalg.DenseVector;
 
 public class PhilipsCentroid extends BaseCentroid implements Centroid {
 
-    DenseVector distToOthers;
+    public DenseVector distToOthers;
 
-    // TODO Init -1 and store in array if first iteration!
     public double getDistanceTo(Centroid c) {
-        if (distToOthers == null) {
-            return distance(c.getVector());
+        if (distToOthers.get(c.getID()) == 0) {
+            double dist = distance(c.getVector());
+            distToOthers.values[c.getID()] = dist;
+            ((PhilipsCentroid)c).distToOthers.values[this.ID] = dist;
+            return dist;
         }
         return distToOthers.get(c.getID());
     }
 
-    public PhilipsCentroid(DenseVector vector, int ID, String domain) {
+    public PhilipsCentroid(DenseVector vector, int ID, String domain, int k) {
         super(vector, ID, domain);
+        distToOthers = new DenseVector(k);
     }
 
-    // TODO Can be more effective. Look av Elkan.
     @Override
     public int update(Centroid[] centroids) {
-        distToOthers = new DenseVector(centroids.length);
-        for (int i = 0; i < centroids.length; i ++) {
-            if (i == this.ID) {
-                distToOthers.values[i] = 0;
-                continue;
-            }
-            distToOthers.values[i] = distance(centroids[i].getVector());
+        for (Centroid c : centroids) {
+            if (c.getMovement() == 0 && this.movement == 0) {continue;}
+            if (c.getID() <= this.ID) {continue;}
+            double dist = distance(c.getVector());
+            distToOthers.values[c.getID()] = dist;
+            ((PhilipsCentroid)c).distToOthers.values[this.ID] = dist;
         }
         return giveDistCalcAccAndReset();
     }

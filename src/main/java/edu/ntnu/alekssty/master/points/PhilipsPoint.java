@@ -12,20 +12,22 @@ public class PhilipsPoint extends BasePoint implements Point {
 
     @Override
     public int update(Centroid[] centroids) {
-        double minDistance = Double.MAX_VALUE;
-        int closestCentroidId = -1;
+        if (assignedClusterID == -1) {
+            assignedClusterID = 0;
+        }
+        double distToAssigned = distance(centroids[assignedClusterID].getVector());
         for (int i = 0; i < centroids.length; i++) {
-            Centroid centroid = centroids[i];
-            if (assignedClusterID != -1) {
-                if (2*distance(centroids[assignedClusterID].getVector()) <= ((PhilipsCentroid)centroids[assignedClusterID]).getDistanceTo(centroids[i])) {
-                    continue;
-                }
+            if (i == assignedClusterID) {
+                continue;
             }
-            double distance = distance(centroid.getVector());
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestCentroidId = i;
-                assignedClusterID = closestCentroidId;
+            Centroid centroid = centroids[i];
+            if (2 * distToAssigned <= ((PhilipsCentroid) centroids[assignedClusterID]).getDistanceTo(centroid)) {
+                continue;
+            }
+            double newDist = distance(centroid.getVector());
+            if (newDist < distToAssigned) {
+                distToAssigned = newDist;
+                assignedClusterID = i;
             }
         }
         return giveDistCalcAccAndReset();

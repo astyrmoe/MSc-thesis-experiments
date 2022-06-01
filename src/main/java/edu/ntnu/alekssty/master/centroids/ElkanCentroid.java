@@ -34,8 +34,4 @@ public class ElkanCentroid extends BaseCentroid implements Centroid {
     private void updateDistanceToMe(int id, double dist, int k) {
         distanceToOtherCentroids.values[id] = dist;
     }
-
-    public double findOtherCloseCentroidID() {
-        return halfDistToClosestCentroid;
-    }
 }

@@ -5,6 +5,7 @@ import edu.ntnu.alekssty.master.points.*;
 import edu.ntnu.alekssty.master.points.Point;
 import edu.ntnu.alekssty.master.utils.DebugCentorids;
 import edu.ntnu.alekssty.master.utils.DebugPoints;
+import edu.ntnu.alekssty.master.utils.NewIteration;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.api.common.functions.*;
@@ -38,6 +39,7 @@ import org.apache.flink.util.OutputTag;
 import java.util.*;
 
 public class KMeansOffline implements KMeansParams<KMeansOffline> {
+
     private final Map<Param<?>, Object> paramMap = new HashMap<>();
 
     public KMeansOffline() {
@@ -163,7 +165,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                                 outArray[i] = new ElkanCentroid(vector.getVector(), i, vector.getDomain(), k);
                                 break;
                             case PHILIPS:
-                                outArray[i] = new PhilipsCentroid(vector.getVector(), i, vector.getDomain());
+                                outArray[i] = new PhilipsCentroid(vector.getVector(), i, vector.getDomain(), k);
                                 break;
                             case HAMERLY:
                                 outArray[i] = new HamerlyCentroid(vector.getVector(), i, vector.getDomain());
@@ -235,7 +237,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                                                 outArray[i] = new ElkanCentroid(centroids[i].getVector(), i, centroids[i].getDomain(), k);
                                                 break;
                                             case PHILIPS:
-                                                outArray[i] = new PhilipsCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
+                                                outArray[i] = new PhilipsCentroid(centroids[i].getVector(), i, centroids[i].getDomain(), k);
                                                 break;
                                             case HAMERLY:
                                                 outArray[i] = new HamerlyCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
@@ -261,6 +263,10 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                 "centroids",
                 String.class,
                 Centroid[].class);
+
+        public UpdatePoints(int iteration) {
+            this.iteration = iteration;
+        }
 
         @Override
         public void processElement(Point point, BroadcastProcessFunction<Point, Centroid[], Point>.ReadOnlyContext readOnlyContext, Collector<Point> collector) throws Exception {
@@ -320,8 +326,9 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
-            iteration = new Random().nextInt(10000);
-            getRuntimeContext().addAccumulator("distance-calculations-p"+iteration, distCalcAcc);
+            int iterationt = NewIteration.getInstance().getPoint();
+            System.out.println(iterationt + "p");
+            getRuntimeContext().addAccumulator("distance-calculations-p"+iterationt, distCalcAcc);
             buffer = new HashMap<>();
         }
     }
@@ -389,6 +396,10 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                 String.class,
                 Centroid[].class);
 
+        public CentroidUpdater(int iteration) {
+            this.iteration = iteration;
+        }
+
         @Override
         public void processElement(Tuple3<String, Integer, DenseVector>[] tuple3s, BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]>.ReadOnlyContext readOnlyContext, Collector<Centroid[]> collector) throws Exception {
             ReadOnlyBroadcastState<String, Centroid[]> state = readOnlyContext.getBroadcastState(centroidStateDescriptor);
@@ -433,8 +444,9 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
             buffer = new HashMap<>();
-            iteration = new Random().nextInt(10000);
-            getRuntimeContext().addAccumulator("distance-calculations-c"+iteration, distCalcAcc);
+            int iterationt = NewIteration.getInstance().getCentroid();//new Random().nextInt(100000);
+            System.out.println(iterationt + "c");
+            getRuntimeContext().addAccumulator("distance-calculations-c"+iterationt, distCalcAcc);
         }
     }
 
@@ -481,6 +493,9 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
 
     private static class KMeansIterationBody implements IterationBody {
 
+        public Stack<Integer> iterP = new Stack<>();
+        public Stack<Integer> iterC = new Stack<>();
+
         final int k;
         final MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
@@ -490,6 +505,10 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         public KMeansIterationBody(int k) {
             this.k = k;
             centroidStateDescriptor.initializeSerializerUnlessSet(new ExecutionConfig());
+            Integer t1[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30};
+            Collection<Integer> t2 = Arrays.asList(t1);
+            iterP.addAll(t2);
+            iterC.addAll(t2);
         }
 
         @Override
@@ -513,7 +532,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
 
             DataStream<Point> newPoints = points
                     .connect(centroids.broadcast(centroidStateDescriptor))
-                    .process(new UpdatePoints()).name("Update Points");
+                    .process(new UpdatePoints(NewIteration.getInstance().getPoint())).name("Update Points");
             //newPoints.process(new DebugPoints("F New point", false, true));
 
             DataStream<Centroid[]> finalCentroids = centroids.filter(new CentroidFilterFunction(true)).name("Filter finished centroids");
@@ -547,7 +566,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
 
             DataStream<Centroid[]> newCentroids = newCentroidValues
                     .connect(centroidsNotFinished.broadcast(centroidStateDescriptor))
-                    .process(new CentroidUpdater()).name("Centroid updater");
+                    .process(new CentroidUpdater(NewIteration.getInstance().getCentroid())).name("Centroid updater");
             //newCentroids.process(new DebugCentorids("C New centroids", false, true));
 
             // TODO Move to beginning of next iteration
