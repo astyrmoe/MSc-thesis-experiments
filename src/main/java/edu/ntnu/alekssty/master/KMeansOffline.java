@@ -3,14 +3,11 @@ package edu.ntnu.alekssty.master;
 import edu.ntnu.alekssty.master.centroids.*;
 import edu.ntnu.alekssty.master.points.*;
 import edu.ntnu.alekssty.master.points.Point;
-import edu.ntnu.alekssty.master.utils.DebugCentorids;
-import edu.ntnu.alekssty.master.utils.DebugPoints;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.api.common.functions.*;
-import org.apache.flink.api.common.state.BroadcastState;
-import org.apache.flink.api.common.state.MapStateDescriptor;
-import org.apache.flink.api.common.state.ReadOnlyBroadcastState;
+import org.apache.flink.api.common.state.*;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -24,10 +21,10 @@ import org.apache.flink.ml.linalg.DenseVector;
 import org.apache.flink.ml.param.Param;
 import org.apache.flink.ml.util.ParamUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -44,9 +41,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         ParamUtils.initializeMapWithDefaultValues(paramMap, this);
     }
 
-    static final OutputTag<String> smallDomains = new OutputTag<String>("small-domains"){};
     static final OutputTag<String> smallDomainsPoints = new OutputTag<String>("small-domains-points"){};
-    static final OutputTag<Point> largeDomainsPoints = new OutputTag<Point>("large-domains-points"){};
 
     @Override
     public Map<Param<?>, Object> getParamMap() {
@@ -69,7 +64,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                         (String) row.getField("cluster")
                 ))).name("FeatureMaker");
 
-        DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
+        DataStream<Centroid[]> initCentroids = selectInitCentroids(points, getK(), method);
         //initCentroids.process(new DebugCentorids("C Init centroids", true, true));
 
         IterationConfig config = IterationConfig.newBuilder()
@@ -122,134 +117,66 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         return out;
     }
 
-    // TODO WHAT DIS?
-    private static SingleOutputStreamOperator<Centroid[]> temp(DataStream<Point> points, int k, long seed, Methods type) {
-        return points.keyBy(Point::getDomain).window(EndOfStreamWindows.get()).process(new ProcessWindowFunction<Point, Centroid[], String, TimeWindow>() {
-            final IntCounter accNumPointsToCentroid = new IntCounter();
-            final IntCounter accNumDomainsToCentroid = new IntCounter();
-            final IntCounter accNumberOfSmallDomains = new IntCounter();
-            final IntCounter accNumberOfLargeDomains = new IntCounter();
+    private static DataStream<Centroid[]> selectInitCentroids(DataStream<Point> points, int k, Methods type) {
+
+        return points.process(new ProcessFunction<Point, Centroid[]>() {
+            Map<String, Centroid[]> centroidState;
+            Map<String, Integer> numberState;
 
             @Override
             public void open(Configuration parameters) throws Exception {
                 super.open(parameters);
-                getRuntimeContext().addAccumulator("points-into-select-centroid", accNumPointsToCentroid);
-                getRuntimeContext().addAccumulator("domains-into-select-centroid", accNumDomainsToCentroid);
-                getRuntimeContext().addAccumulator("small-domains", accNumberOfSmallDomains);
-                getRuntimeContext().addAccumulator("large-domains", accNumberOfLargeDomains);
+                centroidState = new HashMap<>();
+                numberState = new HashMap<>();
             }
 
             @Override
-            public void process(String s, ProcessWindowFunction<Point, Centroid[], String, TimeWindow>.Context context, Iterable<Point> iterable, Collector<Centroid[]> collector) throws Exception {
-                accNumDomainsToCentroid.add(1);
-                List<Point> vectors = new ArrayList<>();
-                for (Point point : iterable) {
-                    accNumPointsToCentroid.add(1);
-                    vectors.add(point);
-                }
-                if (vectors.size()<k) {
-                    context.output(smallDomains, s);
-                    accNumberOfSmallDomains.add(1);
+            public void processElement(Point point, ProcessFunction<Point, Centroid[]>.Context context, Collector<Centroid[]> collector) throws Exception {
+                String domain = point.getDomain();
+                if (!numberState.containsKey(domain)) {
+                    numberState.put(domain, 1);
+                    Centroid[] newState = new Centroid[1];
+                    newState[0] = getCentroid(point, 0);
+                    centroidState.put(domain, newState);
                     return;
                 }
-                accNumberOfLargeDomains.add(1);
-                Collections.shuffle(vectors, new Random(seed));
-                int i = 0;
-                Centroid[] outArray = new Centroid[k];
-                for (Point vector : vectors) {
-                    if (i<k) {
-                        switch (type) {
-                            case ELKAN:
-                                outArray[i] = new ElkanCentroid(vector.getVector(), i, vector.getDomain(), k);
-                                break;
-                            case PHILIPS:
-                                outArray[i] = new PhilipsCentroid(vector.getVector(), i, vector.getDomain());
-                                break;
-                            case HAMERLY:
-                                outArray[i] = new HamerlyCentroid(vector.getVector(), i, vector.getDomain());
-                                break;
-                            default:
-                                outArray[i] = new NaiveCentroid(vector.getVector(), i, vector.getDomain());
-                        }
-                    }
-                    context.output(largeDomainsPoints, vector);
-                    i++;
+                if (!centroidState.containsKey(domain)) {
+                    System.out.println("wtf");
                 }
-/*
-                Feature[] centroids = vectors.subList(0, k).toArray(new Feature[0]);
-                Centroid[] outArray = new Centroid[k];
-                for (int i = 0; i < k ; i++) {
-                    switch (type) {
-                        case ELKAN:
-                            outArray[i] = new ElkanCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
-                            break;
-                        case PHILIPS:
-                            outArray[i] = new PhilipsCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
-                            break;
-                        case HAMERLY:
-                            outArray[i] = new HamerlyCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
-                            break;
-                        case DRAKE:
-                            if (k < 3) {
-                                throw new Exception("k<3 is not allowed");
-                            }
-                            outArray[i] = new DrakeCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
-                            break;
-                        default:
-                            outArray[i] = new NaiveCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
-                    }
+                if (numberState.get(domain) >= k) {
+                    return;
                 }
-*/
-                collector.collect(outArray);
+                if (numberState.get(domain) < k-1) {
+                    Centroid[] newState = Arrays.copyOf(centroidState.get(domain), numberState.get(domain)+1);
+                    newState[numberState.get(domain)+1] = getCentroid(point, numberState.get(domain));
+                    centroidState.put(domain, newState);
+                    numberState.put(domain, numberState.get(domain)+1);
+                    return;
+                }
+                if (numberState.get(domain) == k-1) {
+                    Centroid[] out = new Centroid[k];
+                    for (Centroid c : centroidState.get(domain)) {
+                        out[c.getID()] = c;
+                    }
+                    out[k-1] = getCentroid(point, numberState.get(domain));
+                    collector.collect(out);
+                    numberState.put(domain, numberState.get(domain)+1);
+                }
             }
-        });
-    }
 
-    private static DataStream<Centroid[]> selectRandomCentroids(DataStream<Point> points, int k, long seed, Methods type) {
-        DataStream<Centroid[]> resultStream =
-                DataStreamUtils.mapPartition(
-                        points,
-                        new MapPartitionFunction<Point, Centroid[]>() {
-                            @Override
-                            public void mapPartition(
-                                    Iterable<Point> iterable, Collector<Centroid[]> out) throws Exception {
-                                Dictionary<String, List<Point>> d = new Hashtable<>();
-                                for (Point vector : iterable) {
-                                    if (d.get(vector.getDomain()) == null) {
-                                        d.put(vector.getDomain(), new ArrayList<>());
-                                    }
-                                    d.get(vector.getDomain()).add(vector);
-                                }
-                                List<Point> vectors;
-                                for (Enumeration<List<Point>> e = d.elements(); e.hasMoreElements();) {
-                                    vectors = e.nextElement();
-                                    if (vectors.size() < k) {
-                                        continue;
-                                    }
-                                    Collections.shuffle(vectors, new Random(seed));
-                                    Point[] centroids = vectors.subList(0, k).toArray(new Point[0]);
-                                    Centroid[] outArray = new Centroid[k];
-                                    for (int i = 0; i < k ; i++) {
-                                        switch (type) {
-                                            case ELKAN:
-                                                outArray[i] = new ElkanCentroid(centroids[i].getVector(), i, centroids[i].getDomain(), k);
-                                                break;
-                                            case PHILIPS:
-                                                outArray[i] = new PhilipsCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
-                                                break;
-                                            case HAMERLY:
-                                                outArray[i] = new HamerlyCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
-                                                break;
-                                            default:
-                                                outArray[i] = new NaiveCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
-                                        }
-                                    }
-                                    out.collect(outArray);
-                                }
-                            }
-                        });
-        resultStream.getTransformation().setParallelism(1);
-        return resultStream;
+            private Centroid getCentroid(Point point, int i) {
+                switch (type) {
+                    case ELKAN:
+                        return new ElkanCentroid(point.getVector(), i, point.getDomain(), k);
+                    case PHILIPS:
+                        return new PhilipsCentroid(point.getVector(), i, point.getDomain());
+                    case HAMERLY:
+                        return new HamerlyCentroid(point.getVector(), i, point.getDomain());
+                    default:
+                        return new NaiveCentroid(point.getVector(), i, point.getDomain());
+                }
+            }
+        }).setParallelism(1);
     }
 
     private static class UpdatePoints extends BroadcastProcessFunction<Point, Centroid[], Point> {
@@ -433,7 +360,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
             buffer = new HashMap<>();
-            iteration = new Random().nextInt(10000);
+            iteration = new Random().nextInt(100000);
             getRuntimeContext().addAccumulator("distance-calculations-c"+iteration, distCalcAcc);
         }
     }
