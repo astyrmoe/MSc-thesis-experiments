@@ -9,8 +9,8 @@ public class HamerlyPoint extends BasePoint implements Point {
     double lowerBound;
     double upperBound;
 
-    public HamerlyPoint(DenseVector vector, String domain) {
-        super(vector, domain);
+    public HamerlyPoint(DenseVector vector, String domain, String label) {
+        super(vector, domain, label);
         lowerBound = Double.MAX_VALUE;
         upperBound = Double.MAX_VALUE;
     }

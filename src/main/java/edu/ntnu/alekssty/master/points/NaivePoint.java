@@ -5,8 +5,8 @@ import org.apache.flink.ml.linalg.DenseVector;
 
 public class NaivePoint extends BasePoint implements Point {
 
-    public NaivePoint(DenseVector vector, String domain) {
-        super(vector, domain);
+    public NaivePoint(DenseVector vector, String domain, String label) {
+        super(vector, domain, label);
     }
 
     @Override

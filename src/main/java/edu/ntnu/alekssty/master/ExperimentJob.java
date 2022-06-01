@@ -75,16 +75,9 @@ public class ExperimentJob {
 				.flatMap(new CentroidToTupleForFileOperator()).name("Make centroids csv-ready")
 				.writeAsCsv(rootPath + method+"-centroids.csv", FileSystem.WriteMode.OVERWRITE);
 
-		DataStream<Point> resultedFeatures = result.get(1);
-		//resultedFeatures.process(new DebugPoints("F Resulted feature", true, true));
-		DataStream<Tuple2<Integer, String>> pointsToResultTable = resultedFeatures.map(new PointToTupleFunction());
-		pointsToResultTable.map(t->1).process(new Counter("Points to result table"));
-		tEnv.toDataStream(data).map(t->1).process(new Counter("Original data"));
-		Table workingTable = tEnv.fromDataStream(pointsToResultTable).as("assigned", "id2")
-				.join(data).where($("id").isEqual($("id2")));
-		tEnv.toDataStream(workingTable).map(t->1).process(new Counter("Working table"));
-		DataStream<Tuple3<String, Integer, String>> readyForCSV = tEnv.toDataStream(workingTable.select($("domain"), $("assigned"), $("cluster")))
-				.map(new PointsToTupleForFileOperator());
+		DataStream<Point> resultedPoints = result.get(1);
+		//resultedPoints.process(new DebugPoints("F Resulted feature", true, true));
+		DataStream<Tuple3<String, Integer, String>> readyForCSV = resultedPoints.map(new PointsToTupleForFileOperator());
 		readyForCSV.map(t->1).process(new Counter("Ready for CSV"));
 		readyForCSV.writeAsCsv(rootPath + method + "-points.csv", FileSystem.WriteMode.OVERWRITE);
 
@@ -103,10 +96,10 @@ public class ExperimentJob {
 		}
 	}
 
-	private static class PointsToTupleForFileOperator implements MapFunction<Row, Tuple3<String, Integer, String>> {
+	private static class PointsToTupleForFileOperator implements MapFunction<Point, Tuple3<String, Integer, String>> {
 		@Override
-		public Tuple3<String, Integer, String> map(Row row) throws Exception {
-			return Tuple3.of((String)row.getField("domain"), (Integer)row.getField("assigned"), (String)row.getField("cluster"));
+		public Tuple3<String, Integer, String> map(Point row) throws Exception {
+			return Tuple3.of(row.getDomain(), row.getAssignedClusterID(), row.getLabel());
 		}
 	}
 }

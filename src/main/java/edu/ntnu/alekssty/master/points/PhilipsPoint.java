@@ -6,8 +6,8 @@ import org.apache.flink.ml.linalg.DenseVector;
 
 public class PhilipsPoint extends BasePoint implements Point {
 
-    public PhilipsPoint(DenseVector vector, String domain) {
-        super(vector, domain);
+    public PhilipsPoint(DenseVector vector, String domain, String label) {
+        super(vector, domain, label);
     }
 
     @Override

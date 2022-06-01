@@ -11,5 +11,6 @@ public interface Point {
     void setFinished();
     String getDomain();
     int getAssignedClusterID();
+    String getLabel();
 
 }

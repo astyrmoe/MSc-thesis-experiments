@@ -65,7 +65,8 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                 .map(row -> (pointMaker(
                         method,
                         (DenseVector) row.getField("features"),
-                        (String) row.getField("domain")
+                        (String) row.getField("domain"),
+                        (String) row.getField("cluster")
                 ))).name("FeatureMaker");
 
         DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
@@ -95,20 +96,20 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         );
     }
 
-    private static Point pointMaker(Methods type, DenseVector features, String domain) throws Exception {
+    private static Point pointMaker(Methods type, DenseVector features, String domain, String label) throws Exception {
         Point out;
         switch (type) {
             case ELKAN:
-                out = new ElkanPoint(features, domain);
+                out = new ElkanPoint(features, domain, label);
                 break;
             case PHILIPS:
-                out = new PhilipsPoint(features, domain);
+                out = new PhilipsPoint(features, domain, label);
                 break;
             case NAIVE:
-                out = new NaivePoint(features, domain);
+                out = new NaivePoint(features, domain, label);
                 break;
             case HAMERLY:
-                out = new HamerlyPoint(features, domain);
+                out = new HamerlyPoint(features, domain, label);
                 break;
 /*
             case DRAKE:
