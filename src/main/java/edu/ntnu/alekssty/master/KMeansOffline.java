@@ -282,7 +282,7 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
                 collector.collect(point);
                 return;
             }
-            int distCalcs = point.update(state.get(domain));
+            int distCalcs = point.update(centroids);
             distCalcAcc.add(distCalcs);
             collector.collect(point);
         }

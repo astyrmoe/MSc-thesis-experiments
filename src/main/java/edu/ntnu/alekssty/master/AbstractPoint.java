@@ -7,7 +7,7 @@ public class AbstractPoint {
 
     public DenseVector vector;
     public final String domain;
-    public int accDistCalc
+    public int accDistCalc;
 
     @Override
     public String toString() {
