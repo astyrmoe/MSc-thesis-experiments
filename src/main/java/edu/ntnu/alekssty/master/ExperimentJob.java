@@ -19,10 +19,10 @@
 package edu.ntnu.alekssty.master;
 
 import edu.ntnu.alekssty.master.centroids.Centroid;
-import edu.ntnu.alekssty.master.features.Feature;
-import edu.ntnu.alekssty.master.utils.FeatureToTupleFunction;
+import edu.ntnu.alekssty.master.points.Point;
+import edu.ntnu.alekssty.master.utils.DebugPoints;
+import edu.ntnu.alekssty.master.utils.PointToTupleFunction;
 import edu.ntnu.alekssty.master.utils.NSLKDDConnector;
-import edu.ntnu.alekssty.master.utils.DebugFeatures;
 import edu.ntnu.alekssty.master.utils.Counter;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.functions.FlatMapFunction;
@@ -55,16 +55,16 @@ public class ExperimentJob {
 
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment()
 				.setParallelism(1);//.setRuntimeMode(RuntimeExecutionMode.BATCH);
-		final StreamTableEnvironment tEnv = StreamTableEnvironment.create(env); //, EnvironmentSettings.inBatchMode());
+		final StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);//, EnvironmentSettings.inBatchMode());
 
 		NSLKDDConnector source = new NSLKDDConnector(path, tEnv);
 		source.connect();
 
-		KMeans engine = new KMeans()
+		KMeansOffline engine = new KMeansOffline()
 				.setK(k)
 				.setMaxIter(20);
 
-		Table data = source.getDataTable();//.where($("domain").isEqual("tcpauthSH"));
+		Table data = source.getDataTable();//.where($("domain").isEqual("tcptimeSH"));
 
 		DataStreamList result = engine.fit(data, method);
 
@@ -72,14 +72,14 @@ public class ExperimentJob {
 
 		DataStream<Centroid[]> resultedCentroids = result.get(0);
 		resultedCentroids
-				.flatMap(new CentroidToTupleForFileOperator())
+				.flatMap(new CentroidToTupleForFileOperator()).name("Make centroids csv-ready")
 				.writeAsCsv(rootPath + method+"-centroids.csv", FileSystem.WriteMode.OVERWRITE);
 
-		DataStream<Feature> resultedFeatures = result.get(1);
-		resultedFeatures.process(new DebugFeatures("F Resulted feature", true, false));
-		DataStream<Tuple2<Integer, String>> pointsToResultTable = resultedFeatures.map(new FeatureToTupleFunction());
+		DataStream<Point> resultedFeatures = result.get(1);
+		//resultedFeatures.process(new DebugPoints("F Resulted feature", true, true));
+		DataStream<Tuple2<Integer, String>> pointsToResultTable = resultedFeatures.map(new PointToTupleFunction());
 		pointsToResultTable.map(t->1).process(new Counter("Points to result table"));
-		//tEnv.toDataStream(data).map(t->1).process(new Counter("Original data"));
+		tEnv.toDataStream(data).map(t->1).process(new Counter("Original data"));
 		Table workingTable = tEnv.fromDataStream(pointsToResultTable).as("assigned", "id2")
 				.join(data).where($("id").isEqual($("id2")));
 		tEnv.toDataStream(workingTable).map(t->1).process(new Counter("Working table"));
@@ -87,7 +87,6 @@ public class ExperimentJob {
 				.map(new PointsToTupleForFileOperator());
 		readyForCSV.map(t->1).process(new Counter("Ready for CSV"));
 		readyForCSV.writeAsCsv(rootPath + method + "-points.csv", FileSystem.WriteMode.OVERWRITE);
-		//readyForCSV.map(Tuple3::toString).sinkTo(FileSink.forRowFormat(new Path("test"), new SimpleStringEncoder<String>()).withBucketAssigner(new BasePathBucketAssigner<String>()).build());
 
 		//System.out.println("PARAMETES:\n" + parameter);
 		//System.out.println("EXEC PLAN:\n" + env.getExecutionPlan());

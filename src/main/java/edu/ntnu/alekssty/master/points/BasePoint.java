@@ -1,14 +1,14 @@
-package edu.ntnu.alekssty.master.features;
+package edu.ntnu.alekssty.master.points;
 
-import edu.ntnu.alekssty.master.Point;
+import edu.ntnu.alekssty.master.AbstractPoint;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class BaseFeature extends Point {
+public class BasePoint extends AbstractPoint {
 
     public int assignedClusterID;
     public boolean finished;
 
-    public BaseFeature(DenseVector vector, String domain) {
+    public BasePoint(DenseVector vector, String domain) {
         super(vector, domain);
         assignedClusterID = -1;
         finished = false;

@@ -1,27 +1,16 @@
-package edu.ntnu.alekssty.master.features;
+package edu.ntnu.alekssty.master.points;
 
 import edu.ntnu.alekssty.master.centroids.Centroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class NaiveFeature extends BaseFeature implements Feature {
+public class NaivePoint extends BasePoint implements Point {
 
-    public NaiveFeature(DenseVector vector, String domain) {
+    public NaivePoint(DenseVector vector, String domain) {
         super(vector, domain);
     }
 
     @Override
     public int update(Centroid[] centroids) {
-        boolean allCentroidsFinished = true;
-        for (Centroid naiveCentroid : centroids) {
-            if (naiveCentroid.getMovement() != 0) {
-                allCentroidsFinished = false;
-                break;
-            }
-        }
-        if (allCentroidsFinished) {
-            this.finished = true;
-            return giveDistCalcAccAndReset();
-        }
         double minDistance = Double.MAX_VALUE;
         int closestCentroidId = -1;
         for (Centroid naiveCentroid : centroids) {

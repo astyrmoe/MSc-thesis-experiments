@@ -1,9 +1,10 @@
 package edu.ntnu.alekssty.master;
 
 import edu.ntnu.alekssty.master.centroids.*;
-import edu.ntnu.alekssty.master.features.*;
+import edu.ntnu.alekssty.master.points.*;
+import edu.ntnu.alekssty.master.points.Point;
 import edu.ntnu.alekssty.master.utils.DebugCentorids;
-import edu.ntnu.alekssty.master.utils.DebugFeatures;
+import edu.ntnu.alekssty.master.utils.DebugPoints;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.api.common.functions.*;
@@ -24,7 +25,6 @@ import org.apache.flink.ml.param.Param;
 import org.apache.flink.ml.util.ParamUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
@@ -37,16 +37,16 @@ import org.apache.flink.util.OutputTag;
 
 import java.util.*;
 
-public class KMeans implements KMeansParams<KMeans> {
+public class KMeansOffline implements KMeansParams<KMeansOffline> {
     private final Map<Param<?>, Object> paramMap = new HashMap<>();
 
-    public KMeans() {
+    public KMeansOffline() {
         ParamUtils.initializeMapWithDefaultValues(paramMap, this);
     }
 
     static final OutputTag<String> smallDomains = new OutputTag<String>("small-domains"){};
-    static final OutputTag<String> smallDomainsFeatures = new OutputTag<String>("small-domains-features"){};
-    static final OutputTag<Feature> largeDomainsFeatures = new OutputTag<Feature>("large-domains-features"){};
+    static final OutputTag<String> smallDomainsPoints = new OutputTag<String>("small-domains-points"){};
+    static final OutputTag<Point> largeDomainsPoints = new OutputTag<Point>("large-domains-points"){};
 
     @Override
     public Map<Param<?>, Object> getParamMap() {
@@ -61,18 +61,15 @@ public class KMeans implements KMeansParams<KMeans> {
         StreamTableEnvironment tEnv = (StreamTableEnvironment) ((TableImpl) input).getTableEnvironment();
 
         // TODO
-        DataStream<Feature> points = tEnv.toDataStream(input)
-                .map(row -> (featureMaker(
+        DataStream<Point> points = tEnv.toDataStream(input)
+                .map(row -> (pointMaker(
                         method,
                         (DenseVector) row.getField("features"),
                         (String) row.getField("domain")
-                )));
+                ))).name("FeatureMaker");
 
         DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
-        //SingleOutputStreamOperator<Centroid[]> initCentroids = temp(points, getK(), getSeed(), method);
-        initCentroids.process(new DebugCentorids("C Init centroids", true, false));
-
-        //DataStream<Feature> filteredPoints = initCentroids.getSideOutput(largeDomainsFeatures);
+        //initCentroids.process(new DebugCentorids("C Init centroids", true, true));
 
         IterationConfig config = IterationConfig.newBuilder()
                 .setOperatorLifeCycle(IterationConfig.OperatorLifeCycle.PER_ROUND)
@@ -87,46 +84,31 @@ public class KMeans implements KMeansParams<KMeans> {
                 body
         );
 
-        DataStream<Centroid[]> iRCentroids = iterationResult.get(0);
-        iRCentroids.process(new DebugCentorids("C Iteration result", true, false));
-        DataStream<Feature> as = iterationResult.get(1);
-        as.process(new DebugFeatures("F Iteration result", true, false));
-        as.process(new ProcessFunction<Feature, Feature>() {
-            IntCounter accFeatureOut;
-            @Override
-            public void open(Configuration parameters) throws Exception {
-                super.open(parameters);
-                accFeatureOut = new IntCounter();
-                getRuntimeContext().addAccumulator("feature-out", accFeatureOut);
-            }
-
-            @Override
-            public void processElement(Feature feature, ProcessFunction<Feature, Feature>.Context context, Collector<Feature> collector) throws Exception {
-                accFeatureOut.add(1);
-            }
-        });
+        DataStream<Centroid[]> iterationResultsCentroids = iterationResult.get(0);
+        //iterationResultsCentroids.process(new DebugCentorids("C Iteration result", true, true));
+        DataStream<Point> iterationsResultFeatures = iterationResult.get(1);
+        //iterationsResultFeatures.process(new DebugPoints("F Iteration result", true, true));
 
         return DataStreamList.of(
-                iRCentroids,
-                iterationResult.get(1)
-                //initCentroids.getSideOutput(smallDomains)
+                iterationResultsCentroids,
+                iterationsResultFeatures
         );
     }
 
-    private static Feature featureMaker(Methods type, DenseVector features, String domain) throws Exception {
-        Feature out;
+    private static Point pointMaker(Methods type, DenseVector features, String domain) throws Exception {
+        Point out;
         switch (type) {
             case ELKAN:
-                out = new ElkanFeature(features, domain);
+                out = new ElkanPoint(features, domain);
                 break;
             case PHILIPS:
                 out = new PhilipsPoint(features, domain);
                 break;
             case NAIVE:
-                out = new NaiveFeature(features, domain);
+                out = new NaivePoint(features, domain);
                 break;
             case HAMERLY:
-                out = new HamerlyFeature(features, domain);
+                out = new HamerlyPoint(features, domain);
                 break;
 /*
             case DRAKE:
@@ -139,29 +121,30 @@ public class KMeans implements KMeansParams<KMeans> {
         return out;
     }
 
-    private static SingleOutputStreamOperator<Centroid[]> temp(DataStream<Feature> points, int k, long seed, Methods type) {
-        return points.keyBy(Feature::getDomain).window(EndOfStreamWindows.get()).process(new ProcessWindowFunction<Feature, Centroid[], String, TimeWindow>() {
-            IntCounter accNumFeaturesToCentroid = new IntCounter();
-            IntCounter accNumDomainsToCentoird = new IntCounter();
-            IntCounter accNumberOfSmallDomains = new IntCounter();
-            IntCounter accNumberOfLargeDomains = new IntCounter();
+    // TODO WHAT DIS?
+    private static SingleOutputStreamOperator<Centroid[]> temp(DataStream<Point> points, int k, long seed, Methods type) {
+        return points.keyBy(Point::getDomain).window(EndOfStreamWindows.get()).process(new ProcessWindowFunction<Point, Centroid[], String, TimeWindow>() {
+            final IntCounter accNumPointsToCentroid = new IntCounter();
+            final IntCounter accNumDomainsToCentroid = new IntCounter();
+            final IntCounter accNumberOfSmallDomains = new IntCounter();
+            final IntCounter accNumberOfLargeDomains = new IntCounter();
 
             @Override
             public void open(Configuration parameters) throws Exception {
                 super.open(parameters);
-                getRuntimeContext().addAccumulator("features-into-select-centroid", accNumFeaturesToCentroid);
-                getRuntimeContext().addAccumulator("domains-into-select-centroid", accNumDomainsToCentoird);
+                getRuntimeContext().addAccumulator("points-into-select-centroid", accNumPointsToCentroid);
+                getRuntimeContext().addAccumulator("domains-into-select-centroid", accNumDomainsToCentroid);
                 getRuntimeContext().addAccumulator("small-domains", accNumberOfSmallDomains);
                 getRuntimeContext().addAccumulator("large-domains", accNumberOfLargeDomains);
             }
 
             @Override
-            public void process(String s, ProcessWindowFunction<Feature, Centroid[], String, TimeWindow>.Context context, Iterable<Feature> iterable, Collector<Centroid[]> collector) throws Exception {
-                accNumDomainsToCentoird.add(1);
-                List<Feature> vectors = new ArrayList<>();
-                for (Feature feature : iterable) {
-                    accNumFeaturesToCentroid.add(1);
-                    vectors.add(feature);
+            public void process(String s, ProcessWindowFunction<Point, Centroid[], String, TimeWindow>.Context context, Iterable<Point> iterable, Collector<Centroid[]> collector) throws Exception {
+                accNumDomainsToCentroid.add(1);
+                List<Point> vectors = new ArrayList<>();
+                for (Point point : iterable) {
+                    accNumPointsToCentroid.add(1);
+                    vectors.add(point);
                 }
                 if (vectors.size()<k) {
                     context.output(smallDomains, s);
@@ -172,11 +155,11 @@ public class KMeans implements KMeansParams<KMeans> {
                 Collections.shuffle(vectors, new Random(seed));
                 int i = 0;
                 Centroid[] outArray = new Centroid[k];
-                for (Feature vector : vectors) {
+                for (Point vector : vectors) {
                     if (i<k) {
                         switch (type) {
                             case ELKAN:
-                                outArray[i] = new ElkanCentroid(vector.getVector(), i, vector.getDomain());
+                                outArray[i] = new ElkanCentroid(vector.getVector(), i, vector.getDomain(), k);
                                 break;
                             case PHILIPS:
                                 outArray[i] = new PhilipsCentroid(vector.getVector(), i, vector.getDomain());
@@ -184,17 +167,11 @@ public class KMeans implements KMeansParams<KMeans> {
                             case HAMERLY:
                                 outArray[i] = new HamerlyCentroid(vector.getVector(), i, vector.getDomain());
                                 break;
-                            case DRAKE:
-                                if (k < 3) {
-                                    throw new Exception("k<3 is not allowed");
-                                }
-                                outArray[i] = new DrakeCentroid(vector.getVector(), i, vector.getDomain());
-                                break;
                             default:
                                 outArray[i] = new NaiveCentroid(vector.getVector(), i, vector.getDomain());
                         }
                     }
-                    context.output(largeDomainsFeatures, vector);
+                    context.output(largeDomainsPoints, vector);
                     i++;
                 }
 /*
@@ -227,46 +204,40 @@ public class KMeans implements KMeansParams<KMeans> {
         });
     }
 
-    private static DataStream<Centroid[]> selectRandomCentroids(DataStream<Feature> points, int k, long seed, Methods type) {
+    private static DataStream<Centroid[]> selectRandomCentroids(DataStream<Point> points, int k, long seed, Methods type) {
         DataStream<Centroid[]> resultStream =
                 DataStreamUtils.mapPartition(
                         points,
-                        new MapPartitionFunction<Feature, Centroid[]>() {
+                        new MapPartitionFunction<Point, Centroid[]>() {
                             @Override
                             public void mapPartition(
-                                    Iterable<Feature> iterable, Collector<Centroid[]> out) throws Exception {
-                                Dictionary<String, List<Feature>> d = new Hashtable<>();
-                                for (Feature vector : iterable) {
+                                    Iterable<Point> iterable, Collector<Centroid[]> out) throws Exception {
+                                Dictionary<String, List<Point>> d = new Hashtable<>();
+                                for (Point vector : iterable) {
                                     if (d.get(vector.getDomain()) == null) {
                                         d.put(vector.getDomain(), new ArrayList<>());
                                     }
                                     d.get(vector.getDomain()).add(vector);
                                 }
-                                List<Feature> vectors;
-                                for (Enumeration<List<Feature>> e = d.elements(); e.hasMoreElements();) {
+                                List<Point> vectors;
+                                for (Enumeration<List<Point>> e = d.elements(); e.hasMoreElements();) {
                                     vectors = e.nextElement();
                                     if (vectors.size() < k) {
                                         continue;
                                     }
                                     Collections.shuffle(vectors, new Random(seed));
-                                    Feature[] centroids = vectors.subList(0, k).toArray(new Feature[0]);
+                                    Point[] centroids = vectors.subList(0, k).toArray(new Point[0]);
                                     Centroid[] outArray = new Centroid[k];
                                     for (int i = 0; i < k ; i++) {
                                         switch (type) {
                                             case ELKAN:
-                                                outArray[i] = new ElkanCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
+                                                outArray[i] = new ElkanCentroid(centroids[i].getVector(), i, centroids[i].getDomain(), k);
                                                 break;
                                             case PHILIPS:
                                                 outArray[i] = new PhilipsCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
                                                 break;
                                             case HAMERLY:
                                                 outArray[i] = new HamerlyCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
-                                                break;
-                                            case DRAKE:
-                                                if (k < 3) {
-                                                    throw new Exception("k<3 is not allowed");
-                                                }
-                                                outArray[i] = new DrakeCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
                                                 break;
                                             default:
                                                 outArray[i] = new NaiveCentroid(centroids[i].getVector(), i, centroids[i].getDomain());
@@ -280,36 +251,39 @@ public class KMeans implements KMeansParams<KMeans> {
         return resultStream;
     }
 
-    private static class UpdatePoints extends BroadcastProcessFunction<Feature, Centroid[], Feature> {
+    private static class UpdatePoints extends BroadcastProcessFunction<Point, Centroid[], Point> {
 
+        Map<String, List<Point>> buffer;
         IntCounter distCalcAcc = new IntCounter();
         int iteration;
-
-        Map<String, List<Feature>> buffer;
         MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
                 String.class,
                 Centroid[].class);
 
         @Override
-        public void processElement(Feature feature, BroadcastProcessFunction<Feature, Centroid[], Feature>.ReadOnlyContext readOnlyContext, Collector<Feature> collector) throws Exception {
+        public void processElement(Point point, BroadcastProcessFunction<Point, Centroid[], Point>.ReadOnlyContext readOnlyContext, Collector<Point> collector) throws Exception {
             ReadOnlyBroadcastState<String, Centroid[]> state = readOnlyContext.getBroadcastState(centroidStateDescriptor);
-            String domain = feature.getDomain();
+            String domain = point.getDomain();
             if (!state.contains(domain)) {
                 if (!buffer.containsKey(domain)) {
                     buffer.put(domain, new ArrayList<>());
                 }
-                buffer.get(domain).add(feature);
+                buffer.get(domain).add(point);
                 return;
             }
-            if (finishedCentroids(state.get(domain))) {
-                feature.setFinished();
-                collector.collect(feature);
+            updatePoint(point, state.get(domain), collector);
+        }
+
+        private void updatePoint(Point point, Centroid[] centroids, Collector<Point> collector) {
+            if (finishedCentroids(centroids)) {
+                point.setFinished();
+                collector.collect(point);
                 return;
             }
-            int distCalcs = feature.update(state.get(domain));
+            int distCalcs = point.update(state.get(domain));
             distCalcAcc.add(distCalcs);
-            collector.collect(feature);
+            collector.collect(point);
         }
 
         private boolean finishedCentroids(Centroid[] centroids) {
@@ -324,20 +298,13 @@ public class KMeans implements KMeansParams<KMeans> {
         }
 
         @Override
-        public void processBroadcastElement(Centroid[] centroids, BroadcastProcessFunction<Feature, Centroid[], Feature>.Context context, Collector<Feature> collector) throws Exception {
+        public void processBroadcastElement(Centroid[] centroids, BroadcastProcessFunction<Point, Centroid[], Point>.Context context, Collector<Point> collector) throws Exception {
             BroadcastState<String, Centroid[]> state = context.getBroadcastState(centroidStateDescriptor);
             String domain = centroids[0].getDomain();
             state.put(domain, centroids);
             if (buffer.containsKey(domain)) {
-                for (Feature feature : buffer.get(domain)) {
-                    if (finishedCentroids(centroids)) {
-                        feature.setFinished();
-                        collector.collect(feature);
-                        continue;
-                    }
-                    int distCalcs = feature.update(centroids);
-                    distCalcAcc.add(distCalcs);
-                    collector.collect(feature);
+                for (Point point : buffer.get(domain)) {
+                    updatePoint(point, centroids, collector);
                 }
                 buffer.remove(domain);
             }
@@ -354,14 +321,13 @@ public class KMeans implements KMeansParams<KMeans> {
             super.open(parameters);
             iteration = new Random().nextInt(10000);
             getRuntimeContext().addAccumulator("distance-calculations-p"+iteration, distCalcAcc);
-            //getRuntimeContext().addAccumulator("number-of-points-in-iteration", numFeaturesInUpdatePoints);
             buffer = new HashMap<>();
         }
     }
 
-    private static class CentroidValueFormatter implements MapFunction<Feature, Tuple4<String, Integer, DenseVector, Long>> {
+    private static class CentroidValueFormatter implements MapFunction<Point, Tuple4<String, Integer, DenseVector, Long>> {
         @Override
-        public Tuple4<String, Integer, DenseVector, Long> map(Feature value) {
+        public Tuple4<String, Integer, DenseVector, Long> map(Point value) {
             return Tuple4.of(value.getDomain(), value.getAssignedClusterID(), value.getVector(), 1L);
         }
     }
@@ -417,7 +383,7 @@ public class KMeans implements KMeansParams<KMeans> {
         IntCounter distCalcAcc = new IntCounter();
         int iteration;
         Map<String, Tuple3<String, Integer, DenseVector>[]> buffer;
-        MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
+        final MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
                 String.class,
                 Centroid[].class);
@@ -473,7 +439,7 @@ public class KMeans implements KMeansParams<KMeans> {
 
     private static class CentroidFilterFunction implements FilterFunction<Centroid[]> {
 
-        boolean giveFinished;
+        final boolean giveFinished;
 
         public CentroidFilterFunction(boolean giveFinished) {
             this.giveFinished = giveFinished;
@@ -495,28 +461,27 @@ public class KMeans implements KMeansParams<KMeans> {
         }
     }
 
-    private static class FeatureFilterFunction implements FilterFunction<Feature> {
+    private static class PointFilterFunction implements FilterFunction<Point> {
 
-        boolean giveFinished;
+        final boolean giveFinished;
 
-        public FeatureFilterFunction(boolean giveFinished) {
+        public PointFilterFunction(boolean giveFinished) {
             this.giveFinished = giveFinished;
         }
 
         @Override
-        public boolean filter(Feature feature) throws Exception {
+        public boolean filter(Point point) throws Exception {
             if (giveFinished) {
-                return feature.isFinished();
+                return point.isFinished();
             }
-            return !feature.isFinished();
+            return !point.isFinished();
         }
     }
 
     private static class KMeansIterationBody implements IterationBody {
 
-        int k;
-
-        MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
+        final int k;
+        final MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
                 String.class,
                 Centroid[].class);
@@ -529,9 +494,9 @@ public class KMeans implements KMeansParams<KMeans> {
         @Override
         public IterationBodyResult process(DataStreamList variableStreams, DataStreamList dataStreams) {
             DataStream<Centroid[]> centroids = variableStreams.get(0);
-            centroids.process(new DebugCentorids("C Into iteration", false, false));
-            DataStream<Feature> points = variableStreams.get(1);
-            points.process(new DebugFeatures("F Into iteration", false, false));
+            //centroids.process(new DebugCentorids("C Into iteration", false, true));
+            DataStream<Point> points = variableStreams.get(1);
+            //points.process(new DebugPoints("F Into iteration", false, true));
 
             DataStream<Integer> terminationCriteria = centroids.flatMap(new FlatMapFunction<Centroid[], Integer>() {
                 @Override
@@ -543,33 +508,34 @@ public class KMeans implements KMeansParams<KMeans> {
                         }
                     }
                 }
-            });
+            }).name("Termination criteria");
 
-            DataStream<Feature> newPoints = points.connect(centroids.broadcast(centroidStateDescriptor))
-                    .process(new UpdatePoints());
-            newPoints.process(new DebugFeatures("F New point", false, false));
+            DataStream<Point> newPoints = points
+                    .connect(centroids.broadcast(centroidStateDescriptor))
+                    .process(new UpdatePoints()).name("Update Points");
+            //newPoints.process(new DebugPoints("F New point", false, true));
 
-            DataStream<Centroid[]> finalCentroids = centroids.filter(new CentroidFilterFunction(true));
-            DataStream<Feature> finalPoints = newPoints.filter(new FeatureFilterFunction(true));
-            finalPoints.process(new DebugFeatures("F Final point filter", false, false));
+            DataStream<Centroid[]> finalCentroids = centroids.filter(new CentroidFilterFunction(true)).name("Filter finished centroids");
+            DataStream<Point> finalPoints = newPoints.filter(new PointFilterFunction(true)).name("Filter finished points");
+            //finalPoints.process(new DebugFeatures("F Final point filter", false, false));
 
-            DataStream<Centroid[]> centroidsStillWithUs = centroids.filter(new CentroidFilterFunction(false));
-            DataStream<Feature> pointsStillWithUs = newPoints.filter(new FeatureFilterFunction(false));
-            pointsStillWithUs.process(new DebugFeatures("F Points still with us filter", false, false));
+            DataStream<Centroid[]> centroidsNotFinished = centroids.filter(new CentroidFilterFunction(false)).name("Filter not finished centroids");
+            DataStream<Point> pointsNotFinished = newPoints.filter(new PointFilterFunction(false)).name("Filter not finished points");
+            //pointsNotFinished.process(new DebugPoints("F Points still with us filter", false, true));
 
             DataStreamList perRoundResults = IterationBody.forEachRound(
-                    DataStreamList.of(pointsStillWithUs),
+                    DataStreamList.of(pointsNotFinished),
                     dataStreamList -> {
-                        DataStream<Feature> newPoints1 = dataStreamList.get(0);
+                        DataStream<Point> newPoints1 = dataStreamList.get(0);
 
                         DataStream<Tuple3<String, Integer, DenseVector>[]> newCentroidValues = newPoints1
-                                .map(new CentroidValueFormatter())
+                                .map(new CentroidValueFormatter()).name("Centroid value formatter")
                                 .keyBy(new KeyCentroidValues())
                                 .window(EndOfStreamWindows.get())
-                                .reduce(new CentroidValueAccumulator())
-                                .map(new CentroidValueAverager())
+                                .reduce(new CentroidValueAccumulator()).name("Centroid value accumulator")
+                                .map(new CentroidValueAverager()).name("Centroid value averager")
                                 .windowAll(EndOfStreamWindows.get())
-                                .apply(new ToList());
+                                .apply(new ToList()).name("Centroid value to list");
 
                         return DataStreamList.of(
                                 newCentroidValues
@@ -579,8 +545,9 @@ public class KMeans implements KMeansParams<KMeans> {
             DataStream<Tuple3<String, Integer, DenseVector>[]> newCentroidValues = perRoundResults.get(0);
 
             DataStream<Centroid[]> newCentroids = newCentroidValues
-                    .connect(centroidsStillWithUs.broadcast(centroidStateDescriptor))
-                    .process(new CentroidUpdater());
+                    .connect(centroidsNotFinished.broadcast(centroidStateDescriptor))
+                    .process(new CentroidUpdater()).name("Centroid updater");
+            //newCentroids.process(new DebugCentorids("C New centroids", false, true));
 
             // TODO Move to beginning of next iteration
             DataStream<Centroid[]> cf = newCentroids.map(new MapFunction<Centroid[], Centroid[]>() {
@@ -605,7 +572,7 @@ public class KMeans implements KMeansParams<KMeans> {
             return new IterationBodyResult(
                     DataStreamList.of(
                             cf,
-                            pointsStillWithUs
+                            pointsNotFinished
                     ),
                     DataStreamList.of(
                             finalCentroids,
@@ -615,5 +582,4 @@ public class KMeans implements KMeansParams<KMeans> {
             );
         }
     }
-
 }

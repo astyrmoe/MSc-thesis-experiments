@@ -1,14 +1,13 @@
 package edu.ntnu.alekssty.master;
 
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.ml.common.distance.DistanceMeasure;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class Point {
+public class AbstractPoint {
 
     public DenseVector vector;
-    public String domain;
-    public int accDistCalc;
+    public final String domain;
+    public int accDistCalc
 
     @Override
     public String toString() {
@@ -18,7 +17,7 @@ public class Point {
                 '}';
     }
 
-    public Point(DenseVector vector, String domain) {
+    public AbstractPoint(DenseVector vector, String domain) {
         this.vector = vector;
         this.domain = domain;
         accDistCalc = 0;

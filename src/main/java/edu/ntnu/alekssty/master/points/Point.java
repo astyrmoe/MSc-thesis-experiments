@@ -1,9 +1,9 @@
-package edu.ntnu.alekssty.master.features;
+package edu.ntnu.alekssty.master.points;
 
 import edu.ntnu.alekssty.master.centroids.Centroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public interface Feature {
+public interface Point {
 
     int update(Centroid[] centroids);
     DenseVector getVector();

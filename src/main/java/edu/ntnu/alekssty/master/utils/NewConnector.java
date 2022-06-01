@@ -1,6 +1,5 @@
 package edu.ntnu.alekssty.master.utils;
 
-import org.apache.flink.api.common.io.FileInputFormat;
 import org.apache.flink.connector.file.src.FileSource;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.formats.csv.CsvReaderFormat;
@@ -9,11 +8,12 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 import java.io.File;
 
+// TODO Can replace NSLKDDConnector
 public class NewConnector {
 
-    String path;
-    StreamExecutionEnvironment env;
-    StreamTableEnvironment tEnv;
+    final String path;
+    final StreamExecutionEnvironment env;
+    final StreamTableEnvironment tEnv;
     FileSource<InputObject> source;
 
     public NewConnector(String path, StreamExecutionEnvironment env) {
@@ -35,8 +35,5 @@ public class NewConnector {
     }
 
     private class InputObject {
-
-
-
     }
 }

@@ -6,6 +6,7 @@ public class PhilipsCentroid extends BaseCentroid implements Centroid {
 
     DenseVector distToOthers;
 
+    // TODO Init -1 and store in array if first iteration!
     public double getDistanceTo(Centroid c) {
         if (distToOthers == null) {
             return distance(c.getVector());
@@ -17,6 +18,7 @@ public class PhilipsCentroid extends BaseCentroid implements Centroid {
         super(vector, ID, domain);
     }
 
+    // TODO Can be more effective. Look av Elkan.
     @Override
     public int update(Centroid[] centroids) {
         distToOthers = new DenseVector(centroids.length);

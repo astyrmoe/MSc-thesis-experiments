@@ -1,7 +1,6 @@
 package edu.ntnu.alekssty.master.utils;
 
 import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.ml.linalg.DenseVector;
 import org.apache.flink.ml.linalg.Vectors;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -13,15 +12,13 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.functions.TableFunction;
 import org.apache.flink.types.Row;
 
-import java.io.UnsupportedEncodingException;
-
 import static org.apache.flink.table.api.Expressions.$;
 import static org.apache.flink.table.api.Expressions.call;
 
 public class NSLKDDConnector {
 
-    String path;
-    StreamTableEnvironment tEnv;
+    final String path;
+    final StreamTableEnvironment tEnv;
 
     public NSLKDDConnector(String path, StreamTableEnvironment tEnv) {
         this.path = path;
@@ -29,7 +26,7 @@ public class NSLKDDConnector {
     }
 
     public static void main(String[] args) {
-        test();
+        test(args[0]);
     }
 
     public void connect() {
@@ -185,15 +182,12 @@ public class NSLKDDConnector {
                         $("dst_host_srv_rerror_rate")
                 ).as("cluster", "features"))
                 .select($("class"), $("cluster"), $("protocol_type"), $("service"), $("flag"), $("features"));
-        //fourStringsAndFeatureArray.printSchema();
-        DataStream<R> formattedRecords = tEnv.toDataStream(fourStringsAndFeatureArray).map(new FormatRowFunction());
-        //formattedRecords.print("f");
+        DataStream<R> formattedRecords = tEnv.toDataStream(fourStringsAndFeatureArray).map(new FormatRowFunction()).name("Make final row");
         return tEnv.fromDataStream(formattedRecords).as("class", "cluster", "domain", "features", "id");
     }
 
-    public static void test() {
+    public static void test(String path) {
         StreamTableEnvironment tEnv = StreamTableEnvironment.create(StreamExecutionEnvironment.getExecutionEnvironment());
-        String path = "/home/aleks/dev/master/master-jobbing-git/flink/k-means-naive/src/main/resources/KDDTrain+_20Percent.txt";
         NSLKDDConnector nslkddConnector = new NSLKDDConnector(path, tEnv);
         nslkddConnector.connect();
         Table t = nslkddConnector.getDataTable();
@@ -222,13 +216,6 @@ public class NSLKDDConnector {
         public R map(Row row) throws Exception {
             R object = new R();
             object.domain = (String) row.getField("protocol_type") + (String) row.getField("service") + (String) row.getField("flag");
-/*
-            object.domain = Tuple3.of(
-                    (String) row.getField("protocol_type"),
-                    (String) row.getField("service"),
-                    (String) row.getField("flag")
-            );
-*/
             Double[] features = (Double[]) row.getField("features");
             double[] f = new double[features.length];
             int i = 0;
@@ -248,7 +235,6 @@ public class NSLKDDConnector {
     public static class R {
         public String id;
         public String domain;
-        //public Tuple3<String, String, String> domain;
         public String attackClass;
         public String cluster;
         public DenseVector features;

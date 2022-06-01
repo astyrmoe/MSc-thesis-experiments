@@ -4,7 +4,6 @@ public enum Methods {
 
     NAIVE,
     ELKAN,
-    DRAKE,
     HAMERLY,
     PHILIPS
 

@@ -1,10 +1,10 @@
-package edu.ntnu.alekssty.master.features;
+package edu.ntnu.alekssty.master.points;
 
 import edu.ntnu.alekssty.master.centroids.Centroid;
 import edu.ntnu.alekssty.master.centroids.PhilipsCentroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class PhilipsPoint extends BaseFeature implements Feature {
+public class PhilipsPoint extends BasePoint implements Point {
 
     public PhilipsPoint(DenseVector vector, String domain) {
         super(vector, domain);
