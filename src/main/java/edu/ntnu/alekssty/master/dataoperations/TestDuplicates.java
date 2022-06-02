@@ -1,6 +1,5 @@
-package edu.ntnu.alekssty.master.dataoperations;
+/*package edu.ntnu.alekssty.master.dataoperations;
 
-import edu.ntnu.alekssty.master.utils.NSLKDDConnector;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
@@ -62,3 +61,4 @@ public class TestDuplicates {
         env.execute();
     }
 }
+*/

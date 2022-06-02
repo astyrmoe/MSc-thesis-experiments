@@ -1,6 +1,6 @@
-package edu.ntnu.alekssty.master.dataoperations;
+/*package edu.ntnu.alekssty.master.dataoperations;
 
-import edu.ntnu.alekssty.master.utils.NSLKDDConnector;
+import edu.ntnu.alekssty.master.utils.NewConnector;
 import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -25,10 +25,12 @@ public class MakeFasitJob {
                 .setParallelism(1);
         StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
 
-        NSLKDDConnector connector = new NSLKDDConnector(path, tEnv);
+        NewConnector connector = new NewConnector(path, tEnv);
         connector.connect();
 
-        Table data = connector.getDataTable().select($("domain"), $("cluster"));
+        //Table data = connector.getDataTable().select($("domain"), $("cluster"));
+
+
 
         DataStream<Tuple3<String, Integer, Integer>> results = tEnv.toDataStream(data)
                 .keyBy(t -> t.getField("domain"))
@@ -63,3 +65,4 @@ public class MakeFasitJob {
         env.execute();
     }
 }
+*/

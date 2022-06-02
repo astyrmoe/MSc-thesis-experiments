@@ -20,10 +20,8 @@ package edu.ntnu.alekssty.master;
 
 import edu.ntnu.alekssty.master.centroids.Centroid;
 import edu.ntnu.alekssty.master.points.Point;
-import edu.ntnu.alekssty.master.utils.DebugPoints;
-import edu.ntnu.alekssty.master.utils.PointToTupleFunction;
-import edu.ntnu.alekssty.master.utils.NSLKDDConnector;
 import edu.ntnu.alekssty.master.utils.Counter;
+import edu.ntnu.alekssty.master.utils.StreamNSLKDDConnector;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -35,12 +33,7 @@ import org.apache.flink.iteration.DataStreamList;
 import org.apache.flink.ml.linalg.DenseVector;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.Table;
-import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.types.Row;
 import org.apache.flink.util.Collector;
-
-import static org.apache.flink.table.api.Expressions.$;
 
 public class ExperimentJob {
 
@@ -55,18 +48,18 @@ public class ExperimentJob {
 
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment()
 				.setParallelism(1);//.setRuntimeMode(RuntimeExecutionMode.BATCH);
-		final StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);//, EnvironmentSettings.inBatchMode());
+		//final StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);//, EnvironmentSettings.inBatchMode());
 
-		NSLKDDConnector source = new NSLKDDConnector(path, tEnv);
+		StreamNSLKDDConnector source = new StreamNSLKDDConnector(path, env);
 		source.connect();
 
 		KMeansOffline engine = new KMeansOffline()
 				.setK(k)
 				.setMaxIter(20);
 
-		Table data = source.getDataTable();//.where($("domain").isEqual("tcptimeSH"));
+		//Table data = source.getDataTable();//.where($("domain").isEqual("tcptimeSH"));
 
-		DataStreamList result = engine.fit(data, method);
+		DataStreamList result = engine.fit(source.getPoints(), method);
 
 		//result.get(2).writeAsText(rootPath + method + "-smalldomains.csv", FileSystem.WriteMode.OVERWRITE);
 

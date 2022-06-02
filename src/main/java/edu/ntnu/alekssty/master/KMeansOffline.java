@@ -55,21 +55,21 @@ public class KMeansOffline implements KMeansParams<KMeansOffline> {
         return paramMap;
     }
 
-    public DataStreamList fit(Table input, String type) {
+    public DataStreamList fit(DataStream<Tuple3<String, DenseVector, String>> input, String type) {
 
         Methods method = Methods.valueOf(type.toUpperCase());
         System.out.println("Method used: " + method);
 
-        StreamTableEnvironment tEnv = (StreamTableEnvironment) ((TableImpl) input).getTableEnvironment();
+        //StreamTableEnvironment tEnv = (StreamTableEnvironment) ((TableImpl) input).getTableEnvironment();
 
         // TODO
-        DataStream<Point> points = tEnv.toDataStream(input)
-                .map(row -> (pointMaker(
+        DataStream<Point> points = input
+                .map(t -> (pointMaker(
                         method,
-                        (DenseVector) row.getField("features"),
-                        (String) row.getField("domain"),
-                        (String) row.getField("cluster")
-                ))).name("FeatureMaker");
+                        (DenseVector) t.f1,
+                        (String) t.f0,
+                        (String) t.f2)
+                )).name("FeatureMaker");
 
         DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
         //initCentroids.process(new DebugCentorids("C Init centroids", true, true));
