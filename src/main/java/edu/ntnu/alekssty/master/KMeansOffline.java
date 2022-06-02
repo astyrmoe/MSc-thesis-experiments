@@ -2,9 +2,6 @@ package edu.ntnu.alekssty.master;
 
 import edu.ntnu.alekssty.master.centroids.*;
 import edu.ntnu.alekssty.master.points.*;
-import edu.ntnu.alekssty.master.points.Point;
-import edu.ntnu.alekssty.master.utils.DebugCentorids;
-import edu.ntnu.alekssty.master.utils.DebugPoints;
 import edu.ntnu.alekssty.master.utils.NewIteration;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.accumulators.IntCounter;
@@ -30,9 +27,6 @@ import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.table.api.Table;
-import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.table.api.internal.TableImpl;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 

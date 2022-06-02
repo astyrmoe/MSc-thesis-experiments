@@ -67,28 +67,6 @@ under the License.
 <!--			<scope>provided</scope>-->
 		</dependency>
 
-		<!-- https://mvnrepository.com/artifact/org.apache.flink/flink-table-api-java-bridge -->
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-table-api-java-bridge</artifactId>
-			<version>1.15.0</version>
-<!--			<scope>provided</scope>-->
-		</dependency>
-
-		<!-- https://mvnrepository.com/artifact/org.apache.flink/flink-table-planner-loader -->
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-table-planner-loader</artifactId>
-			<version>1.15.0</version>
-		</dependency>
-		<!-- https://mvnrepository.com/artifact/org.apache.flink/flink-table-runtime -->
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-table-runtime</artifactId>
-			<version>1.15.0</version>
-<!--			<scope>provided</scope>-->
-		</dependency>
-
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-csv</artifactId>
@@ -140,19 +118,19 @@ under the License.
 			<groupId>org.apache.logging.log4j</groupId>
 			<artifactId>log4j-slf4j-impl</artifactId>
 			<version>${log4j.version}</version>
-<!--			<scope>runtime</scope>-->
+			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.logging.log4j</groupId>
 			<artifactId>log4j-api</artifactId>
 			<version>${log4j.version}</version>
-<!--			<scope>runtime</scope>-->
+			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.logging.log4j</groupId>
 			<artifactId>log4j-core</artifactId>
 			<version>${log4j.version}</version>
-<!--			<scope>runtime</scope>-->
+			<scope>runtime</scope>
 		</dependency>
 	</dependencies>
 
@@ -190,7 +168,7 @@ under the License.
 								<excludes>
 									<exclude>org.apache.flink:flink-shaded-force-shading</exclude>
 									<exclude>com.google.code.findbugs:jsr305</exclude>
-<!--									<exclude>org.slf4j:*</exclude>-->
+									<exclude>org.slf4j:*</exclude>
 									<exclude>org.apache.logging.log4j:*</exclude>
 								</excludes>
 							</artifactSet>
