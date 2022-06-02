@@ -1,5 +1,6 @@
 package edu.ntnu.alekssty.master.dataoperations;
 
+import edu.ntnu.alekssty.master.batch.Methods;
 import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.AggregateFunction;
@@ -23,15 +24,18 @@ public class ResultJob {
         ParameterTool parameter = ParameterTool.fromArgs(args);
 
         int k = parameter.getInt("k", 2);
-        String method = parameter.get("method", "naive");
-        String rootPath = parameter.get("root", "/tmp/experiment-results/");
+        Methods method = Methods.valueOf(parameter.get("method", "naive").toUpperCase());
+
+        String outputsPath = parameter.get("outputs-path", "/tmp/experiment-results/");
+        String job = parameter.get("job", "offline");
+        String inputPointPath = parameter.get("input-point-path", outputsPath + method + "-" + job + "-points.csv");
 
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment()
                 .setRuntimeMode(RuntimeExecutionMode.BATCH)
                 .setParallelism(1);
 
         CsvReaderFormat<SomePojo> csvFormat = CsvReaderFormat.forPojo(SomePojo.class);
-        FileSource<SomePojo> source = FileSource.forRecordStreamFormat(csvFormat, Path.fromLocalFile(new File(rootPath + method+"-points.csv"))).build();
+        FileSource<SomePojo> source = FileSource.forRecordStreamFormat(csvFormat, Path.fromLocalFile(new File(inputPointPath))).build();
 
         DataStream<SomePojo> points = env.fromSource(source, WatermarkStrategy.noWatermarks(), "Source");
 
@@ -73,7 +77,7 @@ public class ResultJob {
             }
         });
 
-        accumulated.writeAsCsv(rootPath + method + "-accumulated.csv", FileSystem.WriteMode.OVERWRITE);
+        accumulated.writeAsCsv(outputsPath + method + "-" + job + "-accumulated.csv", FileSystem.WriteMode.OVERWRITE);
         env.execute();
     }
 

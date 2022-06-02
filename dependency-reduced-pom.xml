@@ -88,7 +88,7 @@
               <transformers>
                 <transformer />
                 <transformer>
-                  <mainClass>edu.ntnu.alekssty.master.ExperimentJob</mainClass>
+                  <mainClass>edu.ntnu.alekssty.master.Job</mainClass>
                 </transformer>
               </transformers>
             </configuration>

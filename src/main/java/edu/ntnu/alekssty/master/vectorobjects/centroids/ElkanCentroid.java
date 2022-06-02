@@ -1,5 +1,6 @@
-package edu.ntnu.alekssty.master.centroids;
+package edu.ntnu.alekssty.master.vectorobjects.centroids;
 
+import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
 public class ElkanCentroid extends BaseCentroid implements Centroid {

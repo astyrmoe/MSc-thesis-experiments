@@ -1,6 +1,7 @@
-package edu.ntnu.alekssty.master.points;
+package edu.ntnu.alekssty.master.vectorobjects.points;
 
-import edu.ntnu.alekssty.master.centroids.Centroid;
+import edu.ntnu.alekssty.master.vectorobjects.Centroid;
+import edu.ntnu.alekssty.master.vectorobjects.Point;
 import org.apache.flink.ml.linalg.DenseVector;
 
 public class NaivePoint extends BasePoint implements Point {

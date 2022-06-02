@@ -1,6 +1,6 @@
 package edu.ntnu.alekssty.master.utils;
 
-import edu.ntnu.alekssty.master.points.BasePoint;
+import edu.ntnu.alekssty.master.vectorobjects.points.BasePoint;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -46,9 +46,10 @@ public class StreamNSLKDDConnector {
         env.execute();
     }
 
-    public void connect() {
+    public StreamNSLKDDConnector connect() {
         CsvReaderFormat<InputObject> csvFormat = CsvReaderFormat.forPojo(InputObject.class);
         source = FileSource.forRecordStreamFormat(csvFormat, Path.fromLocalFile(new File(path))).build();
+        return this;
     }
 
     @JsonPropertyOrder({

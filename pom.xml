@@ -189,7 +189,7 @@ under the License.
 							<transformers>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-									<mainClass>edu.ntnu.alekssty.master.ExperimentJob</mainClass>
+									<mainClass>edu.ntnu.alekssty.master.Job</mainClass>
 								</transformer>
 							</transformers>
 						</configuration>

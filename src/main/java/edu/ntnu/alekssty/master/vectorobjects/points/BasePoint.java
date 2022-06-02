@@ -1,9 +1,9 @@
-package edu.ntnu.alekssty.master.points;
+package edu.ntnu.alekssty.master.vectorobjects.points;
 
-import edu.ntnu.alekssty.master.AbstractPoint;
+import edu.ntnu.alekssty.master.vectorobjects.Vector;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class BasePoint extends AbstractPoint {
+public class BasePoint extends Vector {
 
     public int assignedClusterID;
     public boolean finished;

@@ -1,6 +1,6 @@
-package edu.ntnu.alekssty.master.utils;
+package edu.ntnu.alekssty.master.debugging;
 
-import edu.ntnu.alekssty.master.points.Point;
+import edu.ntnu.alekssty.master.vectorobjects.Point;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;

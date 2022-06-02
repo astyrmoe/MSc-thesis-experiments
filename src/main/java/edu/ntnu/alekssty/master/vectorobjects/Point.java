@@ -1,6 +1,6 @@
-package edu.ntnu.alekssty.master.points;
+package edu.ntnu.alekssty.master.vectorobjects;
 
-import edu.ntnu.alekssty.master.centroids.Centroid;
+import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
 public interface Point {

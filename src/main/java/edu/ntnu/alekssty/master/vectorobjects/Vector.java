@@ -1,9 +1,9 @@
-package edu.ntnu.alekssty.master;
+package edu.ntnu.alekssty.master.vectorobjects;
 
 import org.apache.flink.ml.common.distance.DistanceMeasure;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class AbstractPoint {
+public class Vector {
 
     public DenseVector vector;
     public final String domain;
@@ -17,7 +17,7 @@ public class AbstractPoint {
                 '}';
     }
 
-    public AbstractPoint(DenseVector vector, String domain) {
+    public Vector(DenseVector vector, String domain) {
         this.vector = vector;
         this.domain = domain;
         accDistCalc = 0;
