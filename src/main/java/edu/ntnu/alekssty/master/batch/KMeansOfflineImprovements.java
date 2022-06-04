@@ -16,6 +16,8 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
+import org.apache.flink.api.java.typeutils.ObjectArrayTypeInfo;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.iteration.*;
 import org.apache.flink.ml.clustering.kmeans.KMeansParams;
@@ -26,11 +28,19 @@ import org.apache.flink.ml.param.Param;
 import org.apache.flink.ml.util.ParamUtils;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.co.RichCoFlatMapFunction;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
+import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
+import org.apache.flink.streaming.api.windowing.assigners.GlobalWindows;
+import org.apache.flink.streaming.api.windowing.triggers.Trigger;
+import org.apache.flink.streaming.api.windowing.triggers.TriggerResult;
+import org.apache.flink.streaming.api.windowing.windows.GlobalWindow;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.Collector;
@@ -451,7 +461,7 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         }
     }
 
-    private static class CentroidUpdater extends BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]> {
+    private static class CentroidUpdater extends BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]> implements IterationListener<Centroid[]> {
 
         IntCounter distCalcAcc = new IntCounter();
         int iteration;
@@ -468,6 +478,7 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         @Override
         public void processElement(Tuple3<String, Integer, DenseVector>[] tuple3s, BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]>.ReadOnlyContext readOnlyContext, Collector<Centroid[]> collector) throws Exception {
             ReadOnlyBroadcastState<String, Centroid[]> state = readOnlyContext.getBroadcastState(centroidStateDescriptor);
+            System.out.println("Process in cu : " + tuple3s);
             String domain = tuple3s[0].f0;
             if (!state.contains(domain)) {
                 buffer.put(domain,tuple3s);
@@ -500,6 +511,7 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             if (buffer.containsKey(domain)) {
                 Tuple3<String, Integer, DenseVector>[] tuple3s = buffer.get(domain);
                 updateCentroid(tuple3s, Centroids, collector);
+                buffer.remove(domain);
                 return;
             }
             context.getBroadcastState(centroidStateDescriptor).put(domain, Centroids);
@@ -512,6 +524,16 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             int iterationt = NewIteration.getInstance().getCentroid();//new Random().nextInt(100000);
             System.out.println(iterationt + "c");
             getRuntimeContext().addAccumulator("distance-calculations-c"+iterationt, distCalcAcc);
+        }
+
+        @Override
+        public void onEpochWatermarkIncremented(int i, IterationListener.Context context, Collector<Centroid[]> collector) throws Exception {
+
+        }
+
+        @Override
+        public void onIterationTerminated(IterationListener.Context context, Collector<Centroid[]> collector) throws Exception {
+
         }
     }
 
@@ -579,9 +601,9 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         @Override
         public IterationBodyResult process(DataStreamList variableStreams, DataStreamList dataStreams) {
             DataStream<Centroid[]> centroids = variableStreams.get(0);
-            //centroids.process(new DebugCentorids("C Into iteration", false, true));
+            centroids.process(new DebugCentorids("C Into iteration", true, false));
             DataStream<Point> points = variableStreams.get(1);
-            //points.process(new DebugPoints("F Into iteration", false, true));
+            points.process(new DebugPoints("F Into iteration", true, false));
 
             DataStream<Integer> terminationCriteria = centroids.flatMap(new FlatMapFunction<Centroid[], Integer>() {
                 @Override
@@ -595,11 +617,11 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
                 }
             }).name("Termination criteria");
 
-            DataStream<Point> newPoints = points.connect(centroids).transform("up", TypeInformation.of(Point.class), new UpdatePointsTransform());
-                    //.connect(centroids).flatMap(new UpdatePointsFlatMap());
-                    //.connect(centroids.broadcast(centroidStateDescriptor))
-                    //.process(new UpdatePoints(NewIteration.getInstance().getPoint())).name("Update Points");
-            //newPoints.process(new DebugPoints("F New point", false, true));
+            DataStream<Point> newPoints = points.connect(centroids.broadcast()).transform("up", TypeInformation.of(Point.class), new UpdatePointsTransform());
+            //.connect(centroids).flatMap(new UpdatePointsFlatMap());
+            //.connect(centroids.broadcast(centroidStateDescriptor))
+            //.process(new UpdatePoints(NewIteration.getInstance().getPoint())).name("Update Points");
+            newPoints.process(new DebugPoints("F New point", true, false));
 
             DataStream<Centroid[]> finalCentroids = centroids.filter(new CentroidFilterFunction(true)).name("Filter finished centroids");
             DataStream<Point> finalPoints = newPoints.filter(new PointFilterFunction(true)).name("Filter finished points");
@@ -609,13 +631,44 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             DataStream<Point> pointsNotFinished = newPoints.filter(new PointFilterFunction(false)).name("Filter not finished points");
             //pointsNotFinished.process(new DebugPoints("F Points still with us filter", false, true));
 
+            DataStream<Tuple3<String, Integer, DenseVector>[]> newCentroidValues;
+            newCentroidValues = pointsNotFinished.keyBy(Point::getDomain).flatMap(new PointTuple3RichFlatMapFunction());//.process(new StringPointTuple3KeyedProcessFunction());
+            newCentroidValues.process(new ProcessFunction<Tuple3<String, Integer, DenseVector>[], Integer>() {
+                @Override
+                public void processElement(Tuple3<String, Integer, DenseVector>[] tuple3s, ProcessFunction<Tuple3<String, Integer, DenseVector>[], Integer>.Context context, Collector<Integer> collector) throws Exception {
+                    System.out.println(Arrays.toString(tuple3s));
+                }
+            });
+/*
+                    .transform(
+                    "ncv",
+                    ObjectArrayTypeInfo.getInfoFor(new TupleTypeInfo<>(
+                            TypeInformation.of(String.class),
+                            TypeInformation.of(Integer.class),
+                            TypeInformation.of(DenseVector.class)
+                    )),
+                    new NewCentroidValueOperator()
+            );
+*/
+            newCentroidValues.flatMap(new FlatMapFunction<Tuple3<String, Integer, DenseVector>[], Integer>() {
+                @Override
+                public void flatMap(Tuple3<String, Integer, DenseVector>[] tuple3s, Collector<Integer> collector) throws Exception {
+                    System.out.println("NCV:");
+                    for (Tuple3<String, Integer, DenseVector> tuple3 : tuple3s) {
+                        System.out.println(tuple3);
+                    }
+
+                }
+            });
+
             PerRoundSubBody pRS = new PerRoundSubBody() {
                 @Override
                 public DataStreamList process(DataStreamList dataStreamList) {
-                    DataStream<Point> newPoints1 = dataStreamList.get(0);
+                    //DataStream<Point> newPoints1 = dataStreamList.get(0);
+                    DataStream<Tuple4<String, Integer, DenseVector, Long>> t = dataStreamList.get(0);
 
-                    DataStream<Tuple3<String, Integer, DenseVector>[]> newCentroidValues = newPoints1
-                            .map(new CentroidValueFormatter()).name("Centroid value formatter")
+                    DataStream<Tuple3<String, Integer, DenseVector>[]> newCentroidValues = t
+                            //.map(new CentroidValueFormatter()).name("Centroid value formatter")
                             .keyBy(new KeyCentroidValues())
                             .window(EndOfStreamWindows.get())
                             .reduce(new CentroidValueAccumulator()).name("Centroid value accumulator")
@@ -629,16 +682,16 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
                 }
             };
 
-            DataStreamList perRoundResults = IterationBody.forEachRound(
-                    DataStreamList.of(pointsNotFinished),
-                    pRS
-            );
-            DataStream<Tuple3<String, Integer, DenseVector>[]> newCentroidValues = perRoundResults.get(0);
+            //DataStreamList perRoundResults = IterationBody.forEachRound(
+            //        DataStreamList.of(t),
+            //        pRS
+            //);
+            //newCentroidValues = perRoundResults.get(0);
 
             DataStream<Centroid[]> newCentroids = newCentroidValues
                     .connect(centroidsNotFinished.broadcast(centroidStateDescriptor))
                     .process(new CentroidUpdater(NewIteration.getInstance().getCentroid())).name("Centroid updater");
-            //newCentroids.process(new DebugCentorids("C New centroids", false, true));
+            newCentroids.process(new DebugCentorids("C New centroids", true, false));
 
             // TODO Move to beginning of next iteration
             DataStream<Centroid[]> cf = newCentroids.map(new MapFunction<Centroid[], Centroid[]>() {
@@ -673,5 +726,175 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             );
         }
 
+        private static class StringPointTuple3KeyedProcessFunction extends KeyedProcessFunction<String, Point, Tuple3<String, Integer, DenseVector>[]> implements IterationListener<Tuple3<String, Integer, DenseVector>[]>{
+            MapState<Integer, DenseVector> sums;
+            MapState<Integer, Integer> number;
+            ValueState<String> domain;
+            MapStateDescriptor<Integer, DenseVector> sumsStateDesc = new MapStateDescriptor<Integer, DenseVector>("sums", Integer.TYPE, DenseVector.class);
+            MapStateDescriptor<Integer, Integer> numberStateDesc = new MapStateDescriptor<Integer, Integer>("number", Integer.TYPE, Integer.TYPE);
+            ValueStateDescriptor<String> domainStateDesc = new ValueStateDescriptor<String>("doamin", String.class);
+
+            @Override
+            public void onEpochWatermarkIncremented(int i, IterationListener.Context context, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
+                if (number.isEmpty()) {
+                    System.out.println("sdf");
+                    return;
+                }
+                Tuple3<String, Integer, DenseVector>[] out = new Tuple3[0];
+                for (Integer id : number.keys()) {
+                    out = Arrays.copyOf(out, out.length+1);
+                    DenseVector newVector = sums.get(id);
+                    for (int j = 0; j < newVector.size(); j++) {
+                        newVector.values[j] /= number.get(id);
+                    }
+                    System.out.println("nre vector : " + newVector);
+                    out[out.length-1] = Tuple3.of(domain.value(), id, newVector);
+                }
+                collector.collect(out);
+                sums.clear();
+                number.clear();
+                domain.clear();
+            }
+
+            @Override
+            public void onIterationTerminated(IterationListener.Context context, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
+                if (!number.isEmpty()) {
+                    onEpochWatermarkIncremented(0, context, collector);
+                }
+            }
+
+            @Override
+            public void open(Configuration c) throws Exception {
+                System.out.println("nberf");
+                sums = getRuntimeContext().getMapState(sumsStateDesc);
+                number = getRuntimeContext().getMapState(numberStateDesc);
+                domain = getRuntimeContext().getState(domainStateDesc);
+            }
+
+            @Override
+            public void processElement(Point point, KeyedProcessFunction<String, Point, Tuple3<String, Integer, DenseVector>[]>.Context context, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
+                if (!sums.contains(point.getAssignedClusterID())) {
+                    sums.put(point.getAssignedClusterID(), point.getVector());
+                    number.put(point.getAssignedClusterID(), 1);
+                    domain.update(point.getDomain());
+                    return;
+                }
+                for (int i = 0; i < point.getVector().size(); i++) {
+                    sums.get(point.getAssignedClusterID()).values[i] += point.getVector().get(i);
+                }
+                number.put(point.getAssignedClusterID(), number.get(point.getAssignedClusterID())+1);
+            }
+        }
+
+        private static class PointTuple3RichFlatMapFunction extends RichFlatMapFunction<Point, Tuple3<String, Integer, DenseVector>[]> implements IterationListener<Tuple3<String, Integer, DenseVector>[]>{
+            Map<String, Map<Integer, Tuple2<DenseVector, Integer>>> storage = new HashMap<>();
+            //Map<String, Tuple3<Integer, DenseVector, Integer>[]> storage = new HashMap<>();
+            //MapState<String, Tuple3<Integer, DenseVector, Integer>[]> sums;
+            //MapStateDescriptor<Integer, Tuple3<Integer, DenseVector, Integer>[]> sumsStateDesc = new MapStateDescriptor<Integer, List<Tuple3<Integer, DenseVector, Integer>>>("sums", Integer.TYPE, ObjectArrayTypeInfo.of(new TupleTypeInfo<>(Integer.class, DenseVector.class, Integer.class)));
+
+            @Override
+            public void flatMap(Point point, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
+                if (!storage.containsKey(point.getDomain())) {
+                    storage.put(point.getDomain(), new HashMap<>());
+                    storage.get(point.getDomain()).put(point.getAssignedClusterID(), Tuple2.of(point.getVector(), 1));
+                    return;
+                }
+                if (!storage.get(point.getDomain()).containsKey(point.getAssignedClusterID())) {
+                    storage.get(point.getDomain()).put(point.getAssignedClusterID(), Tuple2.of(point.getVector(), 1));
+                }
+                for (int i = 0; i < point.getVector().size(); i++) {
+                    storage.get(point.getDomain()).get(point.getAssignedClusterID()).f0.values[i] += point.getVector().get(i);
+                }
+                storage.get(point.getDomain()).get(point.getAssignedClusterID()).f1++;
+            }
+
+            @Override
+            public void onEpochWatermarkIncremented(int i, Context context, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
+                if (storage.isEmpty()) {
+                    return;
+                }
+                for (String domain : storage.keySet()) {
+                    Map<Integer, Tuple2<DenseVector, Integer>> domainMap = storage.get(domain);
+                    Tuple3<String, Integer, DenseVector>[] out = new Tuple3[0];
+                    for (Integer id : domainMap.keySet()) {
+                        out = Arrays.copyOf(out, out.length+1);
+                        DenseVector newVector = domainMap.get(id).f0;
+                        for (int j = 0; j < newVector.size(); j++) {
+                            newVector.values[j] /= domainMap.get(id).f1;
+                        }
+                        out[out.length-1] = Tuple3.of(domain, id, newVector);
+                    }
+                    collector.collect(out);
+                }
+                storage.clear();
+            }
+
+            @Override
+            public void onIterationTerminated(Context context, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
+
+            }
+        }
+    }
+
+    public static class NewCentroidValueOperator extends AbstractStreamOperator<Tuple3<String, Integer, DenseVector>[]> implements OneInputStreamOperator<Point, Tuple3<String, Integer, DenseVector>[]>, IterationListener<Tuple3<String, Integer, DenseVector>[]> {
+        MapState<Integer, DenseVector> sums;
+        MapState<Integer, Integer> number;
+        ValueState<String> domain;
+        MapStateDescriptor<Integer, DenseVector> sumsStateDesc = new MapStateDescriptor<Integer, DenseVector>("sums", Integer.TYPE, DenseVector.class);
+        MapStateDescriptor<Integer, Integer> numberStateDesc = new MapStateDescriptor<Integer, Integer>("number", Integer.TYPE, Integer.TYPE);
+        ValueStateDescriptor<String> domainStateDesc = new ValueStateDescriptor<String>("doamin", String.class);
+
+        @Override
+        public void processElement(StreamRecord<Point> streamRecord) throws Exception {
+            Point point = streamRecord.getValue();
+            if (!sums.contains(point.getAssignedClusterID())) {
+                sums.put(point.getAssignedClusterID(), point.getVector());
+                number.put(point.getAssignedClusterID(), 1);
+                domain.update(point.getDomain());
+                return;
+            }
+            for (int i = 0; i < point.getVector().size(); i++) {
+                sums.get(point.getAssignedClusterID()).values[i] += point.getVector().get(i);
+            }
+            number.put(point.getAssignedClusterID(), number.get(point.getAssignedClusterID())+1);
+        }
+
+        @Override
+        public void onEpochWatermarkIncremented(int i, Context context, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
+            if (number.isEmpty()) {
+                System.out.println("sdf");
+                return;
+            }
+            Tuple3<String, Integer, DenseVector>[] out = new Tuple3[0];
+            for (Integer id : number.keys()) {
+                out = Arrays.copyOf(out, out.length+1);
+                DenseVector newVector = sums.get(id);
+                for (int j = 0; j < newVector.size(); j++) {
+                    newVector.values[j] /= number.get(id);
+                }
+                System.out.println("nre vector : " + newVector);
+                out[out.length-1] = Tuple3.of(domain.value(), id, newVector);
+            }
+            collector.collect(out);
+            sums.clear();
+            number.clear();
+            domain.clear();
+        }
+
+        @Override
+        public void onIterationTerminated(Context context, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
+            if (!number.isEmpty()) {
+                onEpochWatermarkIncremented(0, context, collector);
+            }
+        }
+
+        @Override
+        public void open() throws Exception {
+            System.out.println("nberf");
+            super.open();
+            sums = getRuntimeContext().getMapState(sumsStateDesc);
+            number = getRuntimeContext().getMapState(numberStateDesc);
+            domain = getRuntimeContext().getState(domainStateDesc);
+        }
     }
 }

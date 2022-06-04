@@ -43,7 +43,7 @@ public class DebugCentorids extends ProcessFunction<Centroid[], Centroid[]> {
         if (domainFilter != null && !centroids[0].getDomain().equals(domainFilter)) {
             return;
         }
-        if (acc) {accDomains.add(1);}
+        if (acc) {accDomains.add(1);accCentroids.add(centroids.length);}
         if (print) {
             System.out.println(title + " - Domain: " + centroids[0].getDomain());
             for (Centroid centroid : centroids) {
