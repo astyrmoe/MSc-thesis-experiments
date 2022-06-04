@@ -44,8 +44,8 @@ public class KMeansOfflineImprovementsJob {
 		Methods method = Methods.valueOf(parameter.get("method", "naive").toUpperCase());
 		String job = "offline";
 
-		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment()
-				.setParallelism(1);//.setRuntimeMode(RuntimeExecutionMode.BATCH);
+		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+				//.setParallelism(1);//.setRuntimeMode(RuntimeExecutionMode.BATCH);
 
 		StreamNSLKDDConnector source = new StreamNSLKDDConnector(inputPointPath, env);
 		source.connect();
@@ -54,20 +54,20 @@ public class KMeansOfflineImprovementsJob {
 				.setK(k)
 				.setMaxIter(20);
 
-		DataStream<Tuple3<String, DenseVector, String>> input = source.getPoints();//.filter(r -> r.f0.equals("tcpsshSF"));
+		DataStream<Tuple3<String, DenseVector, String>> input = source.getPoints().filter(r -> r.f0.equals("tcpsshSF")||r.f0.equals("tcpnntpSF"));
 
 		DataStreamList result = engine.fit(input, method);
 
 		DataStream<Centroid[]> resultedCentroids = result.get(0);
 		resultedCentroids
 				.flatMap(new CentroidToTupleForFileOperator()).name("Make centroids csv-ready")
-				.writeAsCsv(outputsPath + method+ "-" + job + "-centroids.csv", FileSystem.WriteMode.OVERWRITE);
+				.writeAsCsv(outputsPath + method+ "-" + job + "-centroids.csv", FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
 		DataStream<Point> resultedPoints = result.get(1);
 		//resultedPoints.process(new DebugPoints("F Resulted feature", true, true));
 		DataStream<Tuple3<String, Integer, String>> readyForCSV = resultedPoints.map(new PointsToTupleForFileOperator());
 		readyForCSV.map(t->1).process(new Counter("Ready for CSV"));
-		readyForCSV.writeAsCsv(outputsPath + method + "-" + job + "-points.csv", FileSystem.WriteMode.OVERWRITE);
+		readyForCSV.writeAsCsv(outputsPath + method + "-" + job + "-points.csv", FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
 		JobExecutionResult jobResult = env.execute("Experimental work");
 		System.out.println("JOB RESULTS:\n" + jobResult.getJobExecutionResult());

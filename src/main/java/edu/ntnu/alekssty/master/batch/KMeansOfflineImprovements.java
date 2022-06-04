@@ -16,8 +16,6 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
-import org.apache.flink.api.java.typeutils.ObjectArrayTypeInfo;
-import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.iteration.*;
 import org.apache.flink.ml.clustering.kmeans.KMeansParams;
@@ -29,18 +27,12 @@ import org.apache.flink.ml.util.ParamUtils;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.co.RichCoFlatMapFunction;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
-import org.apache.flink.streaming.api.windowing.assigners.GlobalWindows;
-import org.apache.flink.streaming.api.windowing.triggers.Trigger;
-import org.apache.flink.streaming.api.windowing.triggers.TriggerResult;
-import org.apache.flink.streaming.api.windowing.windows.GlobalWindow;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.Collector;
@@ -79,8 +71,9 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
                         (String) t.f2)
                 )).name("FeatureMaker");
 
-        DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
-        //initCentroids.process(new DebugCentorids("C Init centroids", true, true));
+        //DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
+        DataStream<Centroid[]> initCentroids = points.keyBy(Point::getDomain).process(new MakeFirstFeaturesCentroids(method, getK()));
+        initCentroids.process(new DebugCentorids("C Init centroids", true, true));
 
         IterationConfig config = IterationConfig.newBuilder()
                 .setOperatorLifeCycle(IterationConfig.OperatorLifeCycle.ALL_ROUND)
@@ -96,9 +89,9 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         );
 
         DataStream<Centroid[]> iterationResultsCentroids = iterationResult.get(0);
-        //iterationResultsCentroids.process(new DebugCentorids("C Iteration result", true, true));
+        iterationResultsCentroids.process(new DebugCentorids("C Iteration result", true, true));
         DataStream<Point> iterationsResultFeatures = iterationResult.get(1);
-        //iterationsResultFeatures.process(new DebugPoints("F Iteration result", true, true));
+        iterationsResultFeatures.process(new DebugPoints("F Iteration result", true, true));
 
         return DataStreamList.of(
                 iterationResultsCentroids,
@@ -182,11 +175,12 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
     private static class UpdatePointsTransform extends AbstractStreamOperator<Point> implements TwoInputStreamOperator<Point, Centroid[], Point>, IterationListener<Point> {
         Map<String, Centroid[]> centroids = new HashMap<>();
         Map<String, List<Point>> buffer = new HashMap<>();
-        ListState<Point> out;
+        ListState<Point> out; // TODO Expand to a map of domains. Sideoutput NCVs to CU.
         IntCounter distCalcAcc = new IntCounter();
 
         @Override
         public void onEpochWatermarkIncremented(int i, Context context, Collector<Point> collector) throws Exception {
+            System.out.println("PU: incr");
             for (Point point : out.get()) {
                 collector.collect(point);
             }
@@ -197,12 +191,6 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
 
         @Override
         public void onIterationTerminated(Context context, Collector<Point> collector) throws Exception {
-            for (Point point : out.get()) {
-                collector.collect(point);
-            }
-            out.clear();
-            buffer.clear();
-            centroids.clear();
         }
 
         @Override
@@ -221,6 +209,7 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
 
         @Override
         public void processElement2(StreamRecord<Centroid[]> streamRecord) throws Exception {
+            System.out.println("PU: " + Arrays.toString(streamRecord.getValue()));
             Centroid[] centorid = streamRecord.getValue();
             String domain = centorid[0].getDomain();
             centroids.put(domain, centorid);
@@ -402,7 +391,6 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
             int iterationt = NewIteration.getInstance().getPoint();
-            System.out.println(iterationt + "p");
             getRuntimeContext().addAccumulator("distance-calculations-p"+iterationt, distCalcAcc);
             buffer = new HashMap<>();
         }
@@ -464,28 +452,26 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
     private static class CentroidUpdater extends BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]> implements IterationListener<Centroid[]> {
 
         IntCounter distCalcAcc = new IntCounter();
-        int iteration;
         Map<String, Tuple3<String, Integer, DenseVector>[]> buffer;
+        Map<String, Centroid[]> centroidStore;
         final MapStateDescriptor<String, Centroid[]> centroidStateDescriptor = new MapStateDescriptor<>(
                 "centroids",
                 String.class,
                 Centroid[].class);
 
-        public CentroidUpdater(int iteration) {
-            this.iteration = iteration;
-        }
-
         @Override
         public void processElement(Tuple3<String, Integer, DenseVector>[] tuple3s, BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]>.ReadOnlyContext readOnlyContext, Collector<Centroid[]> collector) throws Exception {
-            ReadOnlyBroadcastState<String, Centroid[]> state = readOnlyContext.getBroadcastState(centroidStateDescriptor);
-            System.out.println("Process in cu : " + tuple3s);
+            System.out.println("CU:" + Arrays.toString(tuple3s));
+            //ReadOnlyBroadcastState<String, Centroid[]> state = readOnlyContext.getBroadcastState(centroidStateDescriptor);
             String domain = tuple3s[0].f0;
-            if (!state.contains(domain)) {
+            if (!centroidStore.containsKey(domain)) {
+                System.out.println("State inneholder ikke domene. Leger til i buffer");
                 buffer.put(domain,tuple3s);
                 return;
             }
-            Centroid[] Centroids = state.get(domain);
+            Centroid[] Centroids = centroidStore.get(domain);
             updateCentroid(tuple3s, Centroids, collector);
+            centroidStore.remove(domain);
         }
 
         private void updateCentroid(Tuple3<String, Integer, DenseVector>[] tuple3s, Centroid[] centroids, Collector<Centroid[]> collector) {
@@ -506,29 +492,35 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         }
 
         @Override
-        public void processBroadcastElement(Centroid[] Centroids, BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]>.Context context, Collector<Centroid[]> collector) throws Exception {
-            String domain = Centroids[0].getDomain();
+        public void processBroadcastElement(Centroid[] centroids, BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]>.Context context, Collector<Centroid[]> collector) throws Exception {
+            System.out.println("CU: "+ Arrays.toString(centroids));
+            String domain = centroids[0].getDomain();
             if (buffer.containsKey(domain)) {
+                System.out.println("Buffer inneholdt domene");
                 Tuple3<String, Integer, DenseVector>[] tuple3s = buffer.get(domain);
-                updateCentroid(tuple3s, Centroids, collector);
+                updateCentroid(tuple3s, centroids, collector);
                 buffer.remove(domain);
                 return;
             }
-            context.getBroadcastState(centroidStateDescriptor).put(domain, Centroids);
+            System.out.println("lagt til i state");
+            centroidStore.put(domain, centroids);
+            //context.getBroadcastState(centroidStateDescriptor).put(domain, centroids);
         }
 
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
             buffer = new HashMap<>();
+            centroidStore = new HashMap<>();
             int iterationt = NewIteration.getInstance().getCentroid();//new Random().nextInt(100000);
-            System.out.println(iterationt + "c");
             getRuntimeContext().addAccumulator("distance-calculations-c"+iterationt, distCalcAcc);
         }
 
         @Override
         public void onEpochWatermarkIncremented(int i, IterationListener.Context context, Collector<Centroid[]> collector) throws Exception {
-
+            System.out.println("incr");
+            buffer.clear();
+            centroidStore.clear();
         }
 
         @Override
@@ -601,9 +593,9 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         @Override
         public IterationBodyResult process(DataStreamList variableStreams, DataStreamList dataStreams) {
             DataStream<Centroid[]> centroids = variableStreams.get(0);
-            centroids.process(new DebugCentorids("C Into iteration", true, false));
+            centroids.process(new DebugCentorids("C Into iteration", true, true));
             DataStream<Point> points = variableStreams.get(1);
-            points.process(new DebugPoints("F Into iteration", true, false));
+            points.process(new DebugPoints("F Into iteration", true, true));
 
             DataStream<Integer> terminationCriteria = centroids.flatMap(new FlatMapFunction<Centroid[], Integer>() {
                 @Override
@@ -621,7 +613,7 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             //.connect(centroids).flatMap(new UpdatePointsFlatMap());
             //.connect(centroids.broadcast(centroidStateDescriptor))
             //.process(new UpdatePoints(NewIteration.getInstance().getPoint())).name("Update Points");
-            newPoints.process(new DebugPoints("F New point", true, false));
+            newPoints.process(new DebugPoints("F New point", true, true));
 
             DataStream<Centroid[]> finalCentroids = centroids.filter(new CentroidFilterFunction(true)).name("Filter finished centroids");
             DataStream<Point> finalPoints = newPoints.filter(new PointFilterFunction(true)).name("Filter finished points");
@@ -631,14 +623,9 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             DataStream<Point> pointsNotFinished = newPoints.filter(new PointFilterFunction(false)).name("Filter not finished points");
             //pointsNotFinished.process(new DebugPoints("F Points still with us filter", false, true));
 
-            DataStream<Tuple3<String, Integer, DenseVector>[]> newCentroidValues;
-            newCentroidValues = pointsNotFinished.keyBy(Point::getDomain).flatMap(new PointTuple3RichFlatMapFunction());//.process(new StringPointTuple3KeyedProcessFunction());
-            newCentroidValues.process(new ProcessFunction<Tuple3<String, Integer, DenseVector>[], Integer>() {
-                @Override
-                public void processElement(Tuple3<String, Integer, DenseVector>[] tuple3s, ProcessFunction<Tuple3<String, Integer, DenseVector>[], Integer>.Context context, Collector<Integer> collector) throws Exception {
-                    System.out.println(Arrays.toString(tuple3s));
-                }
-            });
+            DataStream<Tuple3<String, Integer, DenseVector>[]> newCentroidValues = pointsNotFinished
+                    .keyBy(Point::getDomain)
+                    .flatMap(new PointTuple3RichFlatMapFunction());//.process(new StringPointTuple3KeyedProcessFunction());
 /*
                     .transform(
                     "ncv",
@@ -650,6 +637,7 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
                     new NewCentroidValueOperator()
             );
 */
+/*
             newCentroidValues.flatMap(new FlatMapFunction<Tuple3<String, Integer, DenseVector>[], Integer>() {
                 @Override
                 public void flatMap(Tuple3<String, Integer, DenseVector>[] tuple3s, Collector<Integer> collector) throws Exception {
@@ -660,6 +648,7 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
 
                 }
             });
+*/
 
             PerRoundSubBody pRS = new PerRoundSubBody() {
                 @Override
@@ -690,8 +679,8 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
 
             DataStream<Centroid[]> newCentroids = newCentroidValues
                     .connect(centroidsNotFinished.broadcast(centroidStateDescriptor))
-                    .process(new CentroidUpdater(NewIteration.getInstance().getCentroid())).name("Centroid updater");
-            newCentroids.process(new DebugCentorids("C New centroids", true, false));
+                    .process(new CentroidUpdater()).name("Centroid updater");
+            newCentroids.process(new DebugCentorids("C New centroids", true, true));
 
             // TODO Move to beginning of next iteration
             DataStream<Centroid[]> cf = newCentroids.map(new MapFunction<Centroid[], Centroid[]>() {
@@ -714,14 +703,8 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             });
 
             return new IterationBodyResult(
-                    DataStreamList.of(
-                            cf,
-                            pointsNotFinished
-                    ),
-                    DataStreamList.of(
-                            finalCentroids,
-                            finalPoints
-                    ),
+                    DataStreamList.of(cf, pointsNotFinished),
+                    DataStreamList.of(finalCentroids,finalPoints),
                     terminationCriteria
             );
         }
@@ -737,7 +720,6 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             @Override
             public void onEpochWatermarkIncremented(int i, IterationListener.Context context, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
                 if (number.isEmpty()) {
-                    System.out.println("sdf");
                     return;
                 }
                 Tuple3<String, Integer, DenseVector>[] out = new Tuple3[0];
@@ -747,7 +729,6 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
                     for (int j = 0; j < newVector.size(); j++) {
                         newVector.values[j] /= number.get(id);
                     }
-                    System.out.println("nre vector : " + newVector);
                     out[out.length-1] = Tuple3.of(domain.value(), id, newVector);
                 }
                 collector.collect(out);
@@ -765,7 +746,6 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
 
             @Override
             public void open(Configuration c) throws Exception {
-                System.out.println("nberf");
                 sums = getRuntimeContext().getMapState(sumsStateDesc);
                 number = getRuntimeContext().getMapState(numberStateDesc);
                 domain = getRuntimeContext().getState(domainStateDesc);
@@ -862,7 +842,6 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         @Override
         public void onEpochWatermarkIncremented(int i, Context context, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
             if (number.isEmpty()) {
-                System.out.println("sdf");
                 return;
             }
             Tuple3<String, Integer, DenseVector>[] out = new Tuple3[0];
@@ -872,7 +851,6 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
                 for (int j = 0; j < newVector.size(); j++) {
                     newVector.values[j] /= number.get(id);
                 }
-                System.out.println("nre vector : " + newVector);
                 out[out.length-1] = Tuple3.of(domain.value(), id, newVector);
             }
             collector.collect(out);
@@ -890,11 +868,63 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
 
         @Override
         public void open() throws Exception {
-            System.out.println("nberf");
             super.open();
             sums = getRuntimeContext().getMapState(sumsStateDesc);
             number = getRuntimeContext().getMapState(numberStateDesc);
             domain = getRuntimeContext().getState(domainStateDesc);
+        }
+    }
+
+    private static class MakeFirstFeaturesCentroids extends KeyedProcessFunction<String, Point, Centroid[]> {
+        private final Methods method;
+        ValueState<Centroid[]> centroid;
+        private final int k;
+
+        public MakeFirstFeaturesCentroids(Methods method, int k) {
+            this.method = method;
+            this.k = k;
+        }
+
+        @Override
+        public void open(Configuration parameters) throws Exception {
+            super.open(parameters);
+            centroid = getRuntimeContext().getState(new ValueStateDescriptor<Centroid[]>("d", Centroid[].class));
+            //centroid.update(new Centroid[0]);
+        }
+
+        @Override
+        public void processElement(Point point, KeyedProcessFunction<String, Point, Centroid[]>.Context context, Collector<Centroid[]> collector) throws Exception {
+            if (centroid.value() == null) {
+                centroid.update(new Centroid[0]);
+            }
+            int centroidsSoFar = centroid.value().length;
+            if (centroidsSoFar >= k) {
+                return;
+            }
+            Centroid[] newArray = Arrays.copyOf(centroid.value(), centroidsSoFar+1);
+            newArray[centroidsSoFar] = makeCentroid(point, method, centroidsSoFar);
+            if (centroidsSoFar + 1 == k) {
+                collector.collect(newArray);
+            }
+            centroid.update(newArray);
+        }
+
+        private Centroid makeCentroid(Point point, Methods method, int i) {
+            Centroid out;
+            switch (method) {
+                case ELKAN:
+                    out = new ElkanCentroid(point.getVector(), i, point.getDomain(), k);
+                    break;
+                case PHILIPS:
+                    out = new PhilipsCentroid(point.getVector(), i, point.getDomain(), k);
+                    break;
+                case HAMERLY:
+                    out = new HamerlyCentroid(point.getVector(), i, point.getDomain());
+                    break;
+                default:
+                    out = new NaiveCentroid(point.getVector(), i, point.getDomain());
+            }
+            return out;
         }
     }
 }
