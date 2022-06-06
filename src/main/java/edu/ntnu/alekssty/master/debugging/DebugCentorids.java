@@ -20,6 +20,7 @@ public class DebugCentorids extends ProcessFunction<Centroid[], Centroid[]> {
         this.domainFilter = domainFilter;
         this.title = title;
         this.acc = acc;
+        this.print = print;
     }
 
     public DebugCentorids(String title, boolean acc, boolean print) {
@@ -43,7 +44,10 @@ public class DebugCentorids extends ProcessFunction<Centroid[], Centroid[]> {
         if (domainFilter != null && !centroids[0].getDomain().equals(domainFilter)) {
             return;
         }
-        if (acc) {accDomains.add(1);accCentroids.add(centroids.length);}
+        if (acc) {
+            accDomains.add(1);
+            accCentroids.add(centroids.length);
+        }
         if (print) {
             System.out.println(title + " - Domain: " + centroids[0].getDomain());
             for (Centroid centroid : centroids) {
