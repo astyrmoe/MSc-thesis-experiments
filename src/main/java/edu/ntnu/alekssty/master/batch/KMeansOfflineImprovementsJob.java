@@ -54,7 +54,7 @@ public class KMeansOfflineImprovementsJob {
 				.setK(k)
 				.setMaxIter(20);
 
-		DataStream<Tuple3<String, DenseVector, String>> input = source.getPoints();//.filter(r -> r.f0.equals("tcpsshSF"));
+		DataStream<Tuple3<String, DenseVector, String>> input = source.getPoints();//.filter(r -> r.f0.equals("tcprjeS0"));
 
 		DataStreamList result = engine.fit(input, method);
 

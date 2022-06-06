@@ -601,9 +601,9 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         @Override
         public IterationBodyResult process(DataStreamList variableStreams, DataStreamList dataStreams) {
             DataStream<Centroid[]> centroids = variableStreams.get(0);
-            centroids.process(new DebugCentorids("C Into iteration", true, false));
+            centroids.process(new DebugCentorids("C Into iteration", true, true));
             DataStream<Point> points = variableStreams.get(1);
-            points.process(new DebugPoints("F Into iteration", true, false));
+            points.process(new DebugPoints("F Into iteration", true, true));
 
             DataStream<Integer> terminationCriteria = centroids.flatMap(new FlatMapFunction<Centroid[], Integer>() {
                 @Override
@@ -621,7 +621,7 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             //.connect(centroids).flatMap(new UpdatePointsFlatMap());
             //.connect(centroids.broadcast(centroidStateDescriptor))
             //.process(new UpdatePoints(NewIteration.getInstance().getPoint())).name("Update Points");
-            newPoints.process(new DebugPoints("F New point", true, false));
+            newPoints.process(new DebugPoints("F New point", true, true));
 
             DataStream<Centroid[]> finalCentroids = centroids.filter(new CentroidFilterFunction(true)).name("Filter finished centroids");
             DataStream<Point> finalPoints = newPoints.filter(new PointFilterFunction(true)).name("Filter finished points");
@@ -691,7 +691,7 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             DataStream<Centroid[]> newCentroids = newCentroidValues
                     .connect(centroidsNotFinished.broadcast(centroidStateDescriptor))
                     .process(new CentroidUpdater(NewIteration.getInstance().getCentroid())).name("Centroid updater");
-            newCentroids.process(new DebugCentorids("C New centroids", true, false));
+            newCentroids.process(new DebugCentorids("C New centroids", true, true));
 
             // TODO Move to beginning of next iteration
             DataStream<Centroid[]> cf = newCentroids.map(new MapFunction<Centroid[], Centroid[]>() {
@@ -796,16 +796,19 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             public void flatMap(Point point, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
                 if (!storage.containsKey(point.getDomain())) {
                     storage.put(point.getDomain(), new HashMap<>());
-                    storage.get(point.getDomain()).put(point.getAssignedClusterID(), Tuple2.of(point.getVector(), 1));
+                }
+                Map<Integer, Tuple2<DenseVector, Integer>> domainStorage = storage.get(point.getDomain());
+                if (!domainStorage.containsKey(point.getAssignedClusterID())) {
+                    domainStorage.put(point.getAssignedClusterID(), Tuple2.of(point.getVector(), 1));
+                    storage.put(point.getDomain(), domainStorage);
                     return;
                 }
-                if (!storage.get(point.getDomain()).containsKey(point.getAssignedClusterID())) {
-                    storage.get(point.getDomain()).put(point.getAssignedClusterID(), Tuple2.of(point.getVector(), 1));
+                Tuple2<DenseVector, Integer> clusterstorage = domainStorage.get(point.getAssignedClusterID());
+                for (int i = 0; i < clusterstorage.f0.size(); i++) {
+                    clusterstorage.f0.values[i] += point.getVector().get(i);
                 }
-                for (int i = 0; i < point.getVector().size(); i++) {
-                    storage.get(point.getDomain()).get(point.getAssignedClusterID()).f0.values[i] += point.getVector().get(i);
-                }
-                storage.get(point.getDomain()).get(point.getAssignedClusterID()).f1++;
+                domainStorage.put(point.getAssignedClusterID(), Tuple2.of(clusterstorage.f0, clusterstorage.f1+1));
+                storage.put(point.getDomain(), domainStorage);
             }
 
             @Override
