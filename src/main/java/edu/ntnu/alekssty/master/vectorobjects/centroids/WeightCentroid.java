@@ -17,6 +17,7 @@ public class WeightCentroid extends NaiveCentroid {
         for (int i = 0; i < newMean.size(); i++) {
             newMean.values[i] = (this.vector.get(i)*weight+newPoint.get(i)) / (weight+1);
         }
+        weight++;
         return super.move(newMean);
     }
 }
