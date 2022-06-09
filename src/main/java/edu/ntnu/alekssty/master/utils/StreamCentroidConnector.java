@@ -5,6 +5,7 @@ import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.connector.file.src.FileSource;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.formats.csv.CsvReaderFormat;
@@ -49,18 +50,19 @@ public class StreamCentroidConnector {
                                 .addColumn(
                                         new CsvSchema.Column(1, "features", CsvSchema.ColumnType.ARRAY)
                                                 .withArrayElementSeparator("#"))
+                                .addColumn(new CsvSchema.Column(2, "cardinality", CsvSchema.ColumnType.NUMBER))
                                 .build(),
                         TypeInformation.of(InputObject.class));
         source = FileSource.forRecordStreamFormat(csvFormat, Path.fromLocalFile(new File(path))).build();
         return this;
     }
 
-    public DataStream<Tuple2<String, DenseVector>> getCentroids() {
+    public DataStream<Tuple3<String, DenseVector, Integer>> getCentroids() {
         DataStreamSource<InputObject> stream = env.fromSource(source, WatermarkStrategy.noWatermarks(), "centroids");
-        DataStream<Tuple2<String, DenseVector>> tupeledStream = stream.map(new MapFunction<InputObject, Tuple2<String, DenseVector>>() {
+        DataStream<Tuple3<String, DenseVector, Integer>> tupeledStream = stream.map(new MapFunction<InputObject, Tuple3<String, DenseVector, Integer>>() {
             @Override
-            public Tuple2<String, DenseVector> map(InputObject inputObject) throws Exception {
-                return Tuple2.of(inputObject.domain, inputObject.getDenseVectors());
+            public Tuple3<String, DenseVector, Integer> map(InputObject inputObject) throws Exception {
+                return Tuple3.of(inputObject.domain, inputObject.getDenseVectors(), inputObject.cardinality);
             }
         });
         return tupeledStream;
@@ -73,6 +75,7 @@ public class StreamCentroidConnector {
     private static class InputObject {
         public String domain;
         public double[] features;
+        public int cardinality;
         public DenseVector getDenseVectors() {
             return Vectors.dense(features);
         }

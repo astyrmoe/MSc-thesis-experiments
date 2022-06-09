@@ -14,6 +14,8 @@ import org.apache.flink.api.common.state.*;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.tuple.Tuple4;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.iteration.*;
 import org.apache.flink.ml.clustering.kmeans.KMeansParams;
@@ -23,6 +25,7 @@ import org.apache.flink.ml.param.Param;
 import org.apache.flink.ml.util.ParamUtils;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
@@ -45,6 +48,7 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
     public Map<Param<?>, Object> getParamMap() {
         return paramMap;
     }
+
 
     public DataStreamList fit(DataStream<Tuple3<String, DenseVector, String>> input, Methods method) {
 
@@ -121,7 +125,7 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             DataStream<Centroid[]> centroidsNotFinished = centroids.filter(new CentroidFilterFunction(false)).name("Filter not finished centroids");
             DataStream<Point> pointsNotFinished = newPoints.filter(new PointFilterFunction(false)).name("Filter not finished points");
 
-            DataStream<Tuple3<String, Integer, DenseVector>[]> newCentroidValues = pointsNotFinished.keyBy(Point::getDomain).flatMap(new NewCentroidValuesOperator());
+            DataStream<Tuple4<String, Integer, DenseVector, Integer>[]> newCentroidValues = pointsNotFinished.keyBy(Point::getDomain).flatMap(new NewCentroidValuesOperator());
 
             DataStream<Centroid[]> newCentroids = newCentroidValues
                     .connect(centroidsNotFinished.broadcast(centroidStateDescriptor))
@@ -332,11 +336,11 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         }
     }
 
-    private static class NewCentroidValuesOperator extends RichFlatMapFunction<Point, Tuple3<String, Integer, DenseVector>[]> implements IterationListener<Tuple3<String, Integer, DenseVector>[]>{
+    private static class NewCentroidValuesOperator extends RichFlatMapFunction<Point, Tuple4<String, Integer, DenseVector, Integer>[]> implements IterationListener<Tuple4<String, Integer, DenseVector, Integer>[]>{
         Map<String, Map<Integer, Tuple2<DenseVector, Integer>>> storage = new HashMap<>();
 
         @Override
-        public void flatMap(Point point, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
+        public void flatMap(Point point, Collector<Tuple4<String, Integer, DenseVector, Integer>[]> collector) throws Exception {
             if (!storage.containsKey(point.getDomain())) {
                 storage.put(point.getDomain(), new HashMap<>());
             }
@@ -355,20 +359,20 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         }
 
         @Override
-        public void onEpochWatermarkIncremented(int i, Context context, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
+        public void onEpochWatermarkIncremented(int i, Context context, Collector<Tuple4<String, Integer, DenseVector, Integer>[]> collector) throws Exception {
             if (storage.isEmpty()) {
                 return;
             }
             for (String domain : storage.keySet()) {
                 Map<Integer, Tuple2<DenseVector, Integer>> domainMap = storage.get(domain);
-                Tuple3<String, Integer, DenseVector>[] out = new Tuple3[0];
+                Tuple4<String, Integer, DenseVector, Integer>[] out = new Tuple4[0];
                 for (Integer id : domainMap.keySet()) {
                     out = Arrays.copyOf(out, out.length+1);
                     DenseVector newVector = domainMap.get(id).f0;
                     for (int j = 0; j < newVector.size(); j++) {
                         newVector.values[j] /= domainMap.get(id).f1;
                     }
-                    out[out.length-1] = Tuple3.of(domain, id, newVector);
+                    out[out.length-1] = Tuple4.of(domain, id, newVector, domainMap.get(id).f1);
                 }
                 collector.collect(out);
             }
@@ -376,20 +380,20 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         }
 
         @Override
-        public void onIterationTerminated(Context context, Collector<Tuple3<String, Integer, DenseVector>[]> collector) throws Exception {
+        public void onIterationTerminated(Context context, Collector<Tuple4<String, Integer, DenseVector, Integer>[]> collector) throws Exception {
 
         }
     }
 
-    private static class CentroidUpdater extends BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]> implements IterationListener<Centroid[]> {
+    private static class CentroidUpdater extends BroadcastProcessFunction<Tuple4<String, Integer, DenseVector, Integer>[], Centroid[], Centroid[]> implements IterationListener<Centroid[]> {
 
         IntCounter distCalcAcc = new IntCounter();
         Map<String, Centroid[]> centroidStore = new HashMap<>();
-        Map<String, Tuple3<String, Integer, DenseVector>[]> buffer = new HashMap<>();
+        Map<String, Tuple4<String, Integer, DenseVector, Integer>[]> buffer = new HashMap<>();
         List<Centroid[]> out = new ArrayList<>();
 
         @Override
-        public void processElement(Tuple3<String, Integer, DenseVector>[] tuple3s, BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]>.ReadOnlyContext readOnlyContext, Collector<Centroid[]> collector) throws Exception {
+        public void processElement(Tuple4<String, Integer, DenseVector, Integer>[] tuple3s, BroadcastProcessFunction<Tuple4<String, Integer, DenseVector, Integer>[], Centroid[], Centroid[]>.ReadOnlyContext readOnlyContext, Collector<Centroid[]> collector) throws Exception {
             String domain = tuple3s[0].f0;
             if (!centroidStore.containsKey(domain)) {
                 buffer.put(domain,tuple3s);
@@ -400,11 +404,11 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
             centroidStore.remove(domain);
         }
 
-        private void updateCentroid(Tuple3<String, Integer, DenseVector>[] tuple3s, Centroid[] centroids) {
+        private void updateCentroid(Tuple4<String, Integer, DenseVector, Integer>[] tuple3s, Centroid[] centroids) {
             for (Centroid Centroid : centroids) {
-                for (Tuple3<String, Integer, DenseVector> tuple3 : tuple3s) {
+                for (Tuple4<String, Integer, DenseVector, Integer> tuple3 : tuple3s) {
                     if (tuple3.f1 == Centroid.getID()) {
-                        int distCalcs = Centroid.move(tuple3.f2);
+                        int distCalcs = Centroid.move(tuple3.f2, tuple3.f3);
                         distCalcAcc.add(distCalcs);
                         break;
                     }
@@ -418,10 +422,10 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
         }
 
         @Override
-        public void processBroadcastElement(Centroid[] Centroids, BroadcastProcessFunction<Tuple3<String, Integer, DenseVector>[], Centroid[], Centroid[]>.Context context, Collector<Centroid[]> collector) throws Exception {
+        public void processBroadcastElement(Centroid[] Centroids, BroadcastProcessFunction<Tuple4<String, Integer, DenseVector, Integer>[], Centroid[], Centroid[]>.Context context, Collector<Centroid[]> collector) throws Exception {
             String domain = Centroids[0].getDomain();
             if (buffer.containsKey(domain)) {
-                Tuple3<String, Integer, DenseVector>[] tuple3s = buffer.get(domain);
+                Tuple4<String, Integer, DenseVector, Integer>[] tuple3s = buffer.get(domain);
                 updateCentroid(tuple3s, Centroids);
                 buffer.remove(domain);
                 return;

@@ -6,14 +6,22 @@ import org.apache.flink.ml.linalg.DenseVector;
 public class BaseCentroid extends Vector {
 
     boolean finished;
-    double movement;
+    public double movement;
     final int ID;
+    public int cardinality;
 
     public BaseCentroid(DenseVector vector, int ID, String domain) {
         super(vector, domain);
         this.ID = ID;
         this.movement = Double.MAX_VALUE;
         this.finished = false;
+    }
+
+    public int move(DenseVector vector, int cardinality) {
+        this.movement = distance(vector);
+        this.vector = vector;
+        this.cardinality = cardinality;
+        return giveDistCalcAccAndReset();
     }
 
     public int move(DenseVector vector) {
@@ -34,16 +42,16 @@ public class BaseCentroid extends Vector {
         return movement;
     }
 
+    public int getCardinality() {
+        return cardinality;
+    }
+
     public DenseVector getVector() {
         return vector;
     }
 
     public int getID() {
         return ID;
-    }
-
-    public void setFinished() {
-        finished = true;
     }
 
     @Override

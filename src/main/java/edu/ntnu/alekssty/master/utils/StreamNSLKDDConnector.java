@@ -7,14 +7,22 @@ import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.connector.file.src.FileSource;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.formats.csv.CsvReaderFormat;
+import org.apache.flink.ml.common.datastream.EndOfStreamWindows;
 import org.apache.flink.ml.linalg.DenseVector;
 import org.apache.flink.ml.linalg.Vectors;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
+import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
+import org.apache.flink.streaming.api.windowing.assigners.GlobalWindows;
+import org.apache.flink.streaming.api.windowing.windows.GlobalWindow;
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.util.Collector;
 
 import java.io.File;
+import java.util.*;
 
 public class StreamNSLKDDConnector {
 
@@ -25,6 +33,22 @@ public class StreamNSLKDDConnector {
     public StreamNSLKDDConnector(String path, StreamExecutionEnvironment env) {
         this.path = path;
         this.env = env;
+    }
+
+    public DataStream<Tuple3<String, DenseVector, String>> getRandomPoints(long seed) {
+        return this.getPoints().windowAll(EndOfStreamWindows.get()).process(new ProcessAllWindowFunction<Tuple3<String, DenseVector, String>, Tuple3<String, DenseVector, String>, TimeWindow>() {
+            @Override
+            public void process(ProcessAllWindowFunction<Tuple3<String, DenseVector, String>, Tuple3<String, DenseVector, String>, TimeWindow>.Context context, Iterable<Tuple3<String, DenseVector, String>> iterable, Collector<Tuple3<String, DenseVector, String>> collector) throws Exception {
+                List<Tuple3<String, DenseVector, String>> out = new ArrayList<>();
+                for (Tuple3<String, DenseVector, String> stringDenseVectorStringTuple3 : iterable) {
+                    out.add(stringDenseVectorStringTuple3);
+                }
+                Collections.shuffle(out,new Random(seed));
+                for (Tuple3<String, DenseVector, String> o : out) {
+                    collector.collect(o);
+                }
+            }
+        });
     }
 
     public DataStream<Tuple3<String, DenseVector, String>> getPoints() {

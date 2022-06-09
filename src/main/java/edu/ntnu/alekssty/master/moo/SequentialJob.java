@@ -7,18 +7,16 @@ import edu.ntnu.alekssty.master.utils.StreamCentroidConnector;
 import edu.ntnu.alekssty.master.utils.StreamNSLKDDConnector;
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import edu.ntnu.alekssty.master.vectorobjects.Point;
-import edu.ntnu.alekssty.master.vectorobjects.centroids.NaiveCentroid;
-import edu.ntnu.alekssty.master.vectorobjects.centroids.PhilipsCentroid;
-import edu.ntnu.alekssty.master.vectorobjects.centroids.WeightCentroid;
-import edu.ntnu.alekssty.master.vectorobjects.points.BasePoint;
+import edu.ntnu.alekssty.master.vectorobjects.ticentroids.WeightedNoTICentroid;
+import edu.ntnu.alekssty.master.vectorobjects.ticentroids.WeightedTICentroid;
 import edu.ntnu.alekssty.master.vectorobjects.points.NaivePoint;
+import edu.ntnu.alekssty.master.vectorobjects.points.PhilipsPoint;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.accumulators.IntCounter;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
-import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.configuration.Configuration;
@@ -34,7 +32,6 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.co.CoProcessFunction;
-import org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
@@ -50,14 +47,21 @@ public class SequentialJob {
         String job = "seq";
         String inputCentroidPath = parameter.get("input-centroid-path", "/tmp/experiment-results/NAIVE-offline-centroids.csv");
         String outputsPath = parameter.get("outputs-path", "/tmp/experiment-results/");
+        int seedForRnd = parameter.getInt("seed-rnd-input", 0);
 
         int k = parameter.getInt("k", 2);
         Methods method = Methods.valueOf(parameter.get("method", "naive").toUpperCase());
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment().setParallelism(1);
 
-        DataStream<Tuple3<String, DenseVector, String>> testSource = new StreamNSLKDDConnector(inputPointPath, env).connect().getPoints();
-        DataStream<Tuple2<String, DenseVector>> centroidSource = new StreamCentroidConnector(inputCentroidPath, env).connect().getCentroids();
+        DataStream<Tuple3<String, DenseVector, String>> testSource;
+        if (seedForRnd==0) {
+            testSource = new StreamNSLKDDConnector(inputPointPath, env).connect().getPoints();
+        } else {
+            testSource = new StreamNSLKDDConnector(inputPointPath, env).connect().getRandomPoints(seedForRnd);
+        }
+
+        DataStream<Tuple3<String, DenseVector, Integer>> centroidSource = new StreamCentroidConnector(inputCentroidPath, env).connect().getCentroids();
 
         DataStream<Centroid[]> centroids = centroidSource
                 .keyBy(t->t.f0)
@@ -67,7 +71,7 @@ public class SequentialJob {
                 .apply(new ToList())
                 .map(new UpdateCentroidsInitial());
 
-        DataStream<Point> points = testSource.map(t -> new NaivePoint(t.f1, t.f0, t.f2));
+        DataStream<Point> points = testSource.map(new MakePoints(method));
 
         IterationBody body = new SeqIterationBody();
         DataStreamList iterationResult = Iterations.iterateUnboundedStreams(
@@ -102,6 +106,8 @@ public class SequentialJob {
 
         private static class UpdatePoints extends CoProcessFunction<Point, Centroid[], Point> {
 
+            Map<String, Centroid[]> centroidStorage = new HashMap<>();
+            Map<String, List<Point>> buffer = new HashMap<>();
             IntCounter distCalcAcc = new IntCounter();
 
             @Override
@@ -131,9 +137,6 @@ public class SequentialJob {
                     buffer.remove(centroids[0].getDomain());
                 }
             }
-
-            Map<String, Centroid[]> centroidStorage = new HashMap<>();
-            Map<String, List<Point>> buffer = new HashMap<>();
 
             @Override
             public void open(Configuration parameters) throws Exception {
@@ -178,7 +181,7 @@ public class SequentialJob {
         }
     }
 
-    private static class MakeCentroids extends KeyedProcessFunction<String, Tuple2<String, DenseVector>, Centroid> {
+    private static class MakeCentroids extends KeyedProcessFunction<String, Tuple3<String, DenseVector, Integer>, Centroid> {
         private final Methods method;
         private final int k;
         ValueState<Integer> nextID;
@@ -189,17 +192,17 @@ public class SequentialJob {
         }
 
         @Override
-        public void processElement(Tuple2<String, DenseVector> centroid, KeyedProcessFunction<String, Tuple2<String, DenseVector>, Centroid>.Context context, Collector<Centroid> collector) throws Exception {
+        public void processElement(Tuple3<String, DenseVector, Integer> centroid, KeyedProcessFunction<String, Tuple3<String, DenseVector, Integer>, Centroid>.Context context, Collector<Centroid> collector) throws Exception {
             if(nextID.value() == null) {
                 nextID.update(0);
             }
             Centroid out;
             switch (method) {
                 case PHILIPS:
-                    out = new PhilipsCentroid(centroid.f1, nextID.value(), centroid.f0, k);
+                    out = new WeightedTICentroid(centroid.f1, nextID.value(), centroid.f0, k, centroid.f2);
                     break;
                 default:
-                    out = new WeightCentroid(centroid.f1, nextID.value(), centroid.f0);
+                    out = new WeightedNoTICentroid(centroid.f1, nextID.value(), centroid.f0, centroid.f2);
             }
             collector.collect(out);
             nextID.update(nextID.value()+1);
@@ -209,6 +212,27 @@ public class SequentialJob {
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
             nextID = getRuntimeContext().getState(new ValueStateDescriptor<Integer>("nextID", Integer.class));
+        }
+    }
+
+    private static class MakePoints implements MapFunction<Tuple3<String, DenseVector, String>, Point> {
+        private final Methods method;
+
+        public MakePoints(Methods method) {
+            this.method = method;
+        }
+
+        @Override
+        public Point map(Tuple3<String, DenseVector, String> in) throws Exception {
+            Point out;
+            switch (method) {
+                case PHILIPS:
+                    out = new PhilipsPoint(in.f1, in.f0, in.f2);
+                    break;
+                default:
+                    out = new NaivePoint(in.f1, in.f0, in.f2);
+            }
+            return out;
         }
     }
 }
