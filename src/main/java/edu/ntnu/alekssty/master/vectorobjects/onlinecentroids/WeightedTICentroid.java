@@ -1,16 +1,15 @@
-package edu.ntnu.alekssty.master.vectorobjects.ticentroids;
+package edu.ntnu.alekssty.master.vectorobjects.onlinecentroids;
 
-import edu.ntnu.alekssty.master.vectorobjects.Centroid;
-import edu.ntnu.alekssty.master.vectorobjects.centroids.PhilipsCentroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class WeightedTICentroid extends TICentroid implements Centroid {
+public class WeightedTICentroid extends TICentroid implements WeightedCentroid {
 
     int weight;
 
     public WeightedTICentroid(DenseVector vector, int ID, String domain, int k, Integer f2) {
         super(vector, ID, domain, k);
-        weight = f2; // TODO
+        //weight = f2;
+        weight = 1000;
     }
 
     @Override
@@ -21,5 +20,10 @@ public class WeightedTICentroid extends TICentroid implements Centroid {
         }
         weight++;
         return super.move(newMean);
+    }
+
+    @Override
+    public int getWeight() {
+        return weight;
     }
 }

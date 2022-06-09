@@ -1,16 +1,15 @@
-package edu.ntnu.alekssty.master.vectorobjects.ticentroids;
+package edu.ntnu.alekssty.master.vectorobjects.onlinecentroids;
 
-import edu.ntnu.alekssty.master.vectorobjects.Centroid;
-import edu.ntnu.alekssty.master.vectorobjects.centroids.NaiveCentroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class WeightedNoTICentroid extends NoTICentroid implements Centroid {
+public class WeightedNoTICentroid extends NoTICentroid implements WeightedCentroid {
 
     int weight;
 
     public WeightedNoTICentroid(DenseVector vector, int ID, String domain, Integer f2) {
         super(vector, ID, domain);
-        weight = f2; // TODO
+        //weight = f2;
+        weight = 1000;
     }
 
     @Override
@@ -21,5 +20,10 @@ public class WeightedNoTICentroid extends NoTICentroid implements Centroid {
         }
         weight++;
         return super.move(newMean);
+    }
+
+    @Override
+    public int getWeight() {
+        return weight;
     }
 }

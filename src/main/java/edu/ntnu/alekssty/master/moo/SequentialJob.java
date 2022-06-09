@@ -7,17 +7,20 @@ import edu.ntnu.alekssty.master.utils.StreamCentroidConnector;
 import edu.ntnu.alekssty.master.utils.StreamNSLKDDConnector;
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import edu.ntnu.alekssty.master.vectorobjects.Point;
-import edu.ntnu.alekssty.master.vectorobjects.ticentroids.WeightedNoTICentroid;
-import edu.ntnu.alekssty.master.vectorobjects.ticentroids.WeightedTICentroid;
+import edu.ntnu.alekssty.master.vectorobjects.onlinecentroids.WeightedCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.onlinecentroids.WeightedNoTICentroid;
+import edu.ntnu.alekssty.master.vectorobjects.onlinecentroids.WeightedTICentroid;
 import edu.ntnu.alekssty.master.vectorobjects.points.NaivePoint;
 import edu.ntnu.alekssty.master.vectorobjects.points.PhilipsPoint;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.FileSystem;
@@ -31,15 +34,16 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.co.CoProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
-import org.apache.flink.util.OutputTag;
 
 import java.util.*;
 
 public class SequentialJob {
+
     public static void main(String[] args) throws Exception {
 
         ParameterTool parameter = ParameterTool.fromArgs(args);
@@ -63,13 +67,13 @@ public class SequentialJob {
 
         DataStream<Tuple3<String, DenseVector, Integer>> centroidSource = new StreamCentroidConnector(inputCentroidPath, env).connect().getCentroids();
 
-        DataStream<Centroid[]> centroids = centroidSource
+        DataStream<WeightedCentroid[]> centroids = centroidSource
                 .keyBy(t->t.f0)
                 .process(new MakeCentroids(method, k))
                 .keyBy(Centroid::getDomain)
                 .window(EndOfStreamWindows.get())
                 .apply(new ToList())
-                .map(new UpdateCentroidsInitial());
+                .map(new InitCentroids());
 
         DataStream<Point> points = testSource.map(new MakePoints(method));
 
@@ -89,52 +93,67 @@ public class SequentialJob {
     }
 
     private static class SeqIterationBody implements IterationBody {
+
         @Override
         public IterationBodyResult process(DataStreamList dataStreamList, DataStreamList dataStreamList1) {
-            DataStream<Centroid[]> centroids = dataStreamList.get(0);
+            DataStream<WeightedCentroid[]> centroids = dataStreamList.get(0);
             DataStream<Point> points = dataStreamList1.get(0);
-
-            OutputTag<Centroid[]> o = new OutputTag<Centroid[]>("newCentroids"){};
 
             SingleOutputStreamOperator<Point> finishedPoint = points.connect(centroids.broadcast()).process(new UpdatePoints());
 
+            DataStream<WeightedCentroid[]> newCentroids = finishedPoint.connect(centroids.broadcast())
+                    .process(new CentroidUpdater());
+
             return new IterationBodyResult(
-                    DataStreamList.of(finishedPoint.getSideOutput(o)),
+                    DataStreamList.of(newCentroids),
                     DataStreamList.of(finishedPoint)
             );
         }
 
-        private static class UpdatePoints extends CoProcessFunction<Point, Centroid[], Point> {
+        private static class UpdatePoints extends CoProcessFunction<Point, WeightedCentroid[], Point> {
 
-            Map<String, Centroid[]> centroidStorage = new HashMap<>();
+            Map<String, WeightedCentroid[]> centroidStorage = new HashMap<>();
             Map<String, List<Point>> buffer = new HashMap<>();
             IntCounter distCalcAcc = new IntCounter();
 
             @Override
-            public void processElement1(Point point, CoProcessFunction<Point, Centroid[], Point>.Context context, Collector<Point> collector) throws Exception {
+            public void processElement1(
+                    Point point,
+                    CoProcessFunction<Point, WeightedCentroid[], Point>.Context context,
+                    Collector<Point> collector
+            ) throws Exception {
                 if (!centroidStorage.containsKey(point.getDomain())) {
                     buffer.computeIfAbsent(point.getDomain(), k -> new ArrayList<>());
                     buffer.get(point.getDomain()).add(point);
                     return;
                 }
+                updatePoint(point, collector);
+            }
+
+            private void updatePoint(Point point, Collector<Point> collector) {
                 int distCalc = point.update(centroidStorage.get(point.getDomain()));
                 distCalcAcc.add(distCalc);
-                centroidStorage.get(point.getDomain())[point.getAssignedClusterID()].move(point.getVector());
-                for (Centroid c : centroidStorage.get(point.getDomain())) {
-                    int distCalcs = c.update(centroidStorage.get(point.getDomain()));
-                    distCalcAcc.add(distCalcs);
-                }
                 collector.collect(point);
             }
 
             @Override
-            public void processElement2(Centroid[] centroids, CoProcessFunction<Point, Centroid[], Point>.Context context, Collector<Point> collector) throws Exception {
-                centroidStorage.put(centroids[0].getDomain(), centroids);
-                if (buffer.containsKey(centroids[0].getDomain())) {
-                    for (Point p : buffer.get(centroids[0].getDomain())) {
-                        processElement1(p, context, collector);
+            public void processElement2(
+                    WeightedCentroid[] centroids,
+                    CoProcessFunction<Point, WeightedCentroid[], Point>.Context context,
+                    Collector<Point> collector
+            ) throws Exception {
+                String domain = centroids[0].getDomain();
+                if (centroidStorage.containsKey(domain)) {
+                    if (centroids[0].getWeight() < centroidStorage.get(domain)[0].getWeight()) {
+                        return;
                     }
-                    buffer.remove(centroids[0].getDomain());
+                }
+                centroidStorage.put(domain, centroids);
+                if (buffer.containsKey(domain)) {
+                    for (Point p : buffer.get(domain)) {
+                        updatePoint(p, collector);
+                    }
+                    buffer.remove(domain);
                 }
             }
 
@@ -144,15 +163,61 @@ public class SequentialJob {
                 getRuntimeContext().addAccumulator("dist-calcs-up", distCalcAcc);
             }
         }
+
+        private static class CentroidUpdater extends CoProcessFunction<Point, WeightedCentroid[], WeightedCentroid[]> {
+
+            IntCounter distCalcAcc = new IntCounter();
+            Map<String, WeightedCentroid[]> centroidStore = new HashMap<>();
+            Map<String, Point> buffer = new HashMap<>();
+
+            @Override
+            public void processElement1(Point point, CoProcessFunction<Point, WeightedCentroid[], WeightedCentroid[]>.Context context, Collector<WeightedCentroid[]> collector) throws Exception {
+                String domain = point.getDomain();
+                if (!centroidStore.containsKey(domain)) {
+                    buffer.put(domain, point);
+                    return;
+                }
+                collector.collect(updateCentroid(point, centroidStore.get(domain)));
+                centroidStore.remove(domain);
+            }
+
+            private WeightedCentroid[] updateCentroid(Point point, WeightedCentroid[] centroids) {
+                int distCalcs = centroids[point.getAssignedClusterID()].move(point.getVector());
+                for (WeightedCentroid c : centroids) {
+                    distCalcs += c.update(centroids);
+                }
+                distCalcAcc.add(distCalcs);
+                return centroids;
+            }
+
+            @Override
+            public void processElement2(WeightedCentroid[] weightedCentroids, CoProcessFunction<Point, WeightedCentroid[], WeightedCentroid[]>.Context context, Collector<WeightedCentroid[]> collector) throws Exception {
+                String domain = weightedCentroids[0].getDomain();
+                if (buffer.containsKey(domain)) {
+                    Point point = buffer.get(domain);
+                    collector.collect(updateCentroid(point, weightedCentroids));
+                    buffer.remove(domain);
+                    return;
+                }
+                centroidStore.put(domain, weightedCentroids);
+            }
+
+            @Override
+            public void open(Configuration parameters) throws Exception {
+                super.open(parameters);
+                int iterationt = NewIteration.getInstance().getCentroid();
+                getRuntimeContext().addAccumulator("distance-calculations-c"+iterationt, distCalcAcc);
+            }
+        }
     }
 
-    private static class ToList implements WindowFunction<Centroid, Centroid[], String, TimeWindow> {
+    private static class ToList implements WindowFunction<WeightedCentroid, WeightedCentroid[], String, TimeWindow> {
         @Override
-        public void apply(String s, TimeWindow timeWindow, Iterable<Centroid> iterable, Collector<Centroid[]> collector) throws Exception {
-            Centroid[] out = new Centroid[0];
-            for (Centroid i : iterable) {
+        public void apply(String s, TimeWindow timeWindow, Iterable<WeightedCentroid> iterable, Collector<WeightedCentroid[]> collector) throws Exception {
+            WeightedCentroid[] out = new WeightedCentroid[0];
+            for (WeightedCentroid i : iterable) {
                 if (out.length == 0) {
-                    out = new Centroid[1];
+                    out = new WeightedCentroid[1];
                     out[0] = i;
                     continue;
                 }
@@ -163,12 +228,12 @@ public class SequentialJob {
         }
     }
 
-    private static class UpdateCentroidsInitial extends RichMapFunction<Centroid[], Centroid[]> {
+    private static class InitCentroids extends RichMapFunction<WeightedCentroid[], WeightedCentroid[]> {
         IntCounter distCalcAcc = new IntCounter();
 
         @Override
-        public Centroid[] map(Centroid[] centroids) throws Exception {
-            for (Centroid c : centroids) {
+        public WeightedCentroid[] map(WeightedCentroid[] centroids) throws Exception {
+            for (WeightedCentroid c : centroids) {
                 int distCalcs = c.update(centroids);
                 distCalcAcc.add(distCalcs);
             }
@@ -181,7 +246,7 @@ public class SequentialJob {
         }
     }
 
-    private static class MakeCentroids extends KeyedProcessFunction<String, Tuple3<String, DenseVector, Integer>, Centroid> {
+    private static class MakeCentroids extends KeyedProcessFunction<String, Tuple3<String, DenseVector, Integer>, WeightedCentroid> {
         private final Methods method;
         private final int k;
         ValueState<Integer> nextID;
@@ -192,11 +257,15 @@ public class SequentialJob {
         }
 
         @Override
-        public void processElement(Tuple3<String, DenseVector, Integer> centroid, KeyedProcessFunction<String, Tuple3<String, DenseVector, Integer>, Centroid>.Context context, Collector<Centroid> collector) throws Exception {
+        public void processElement(
+                Tuple3<String, DenseVector, Integer> centroid,
+                KeyedProcessFunction<String, Tuple3<String, DenseVector, Integer>, WeightedCentroid>.Context context,
+                Collector<WeightedCentroid> collector
+        ) throws Exception {
             if(nextID.value() == null) {
                 nextID.update(0);
             }
-            Centroid out;
+            WeightedCentroid out;
             switch (method) {
                 case PHILIPS:
                     out = new WeightedTICentroid(centroid.f1, nextID.value(), centroid.f0, k, centroid.f2);

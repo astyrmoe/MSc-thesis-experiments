@@ -2,7 +2,7 @@ package edu.ntnu.alekssty.master.vectorobjects.points;
 
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import edu.ntnu.alekssty.master.vectorobjects.Point;
-import edu.ntnu.alekssty.master.vectorobjects.centroids.ElkanCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.offlinecentroids.ElkanCentroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
 import static java.lang.Double.max;

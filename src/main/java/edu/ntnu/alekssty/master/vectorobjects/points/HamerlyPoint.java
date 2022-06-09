@@ -2,7 +2,7 @@ package edu.ntnu.alekssty.master.vectorobjects.points;
 
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import edu.ntnu.alekssty.master.vectorobjects.Point;
-import edu.ntnu.alekssty.master.vectorobjects.centroids.HamerlyCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.offlinecentroids.HamerlyCentroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
 public class HamerlyPoint extends BasePoint implements Point {

@@ -1,4 +1,4 @@
-package edu.ntnu.alekssty.master.vectorobjects.centroids;
+package edu.ntnu.alekssty.master.vectorobjects.offlinecentroids;
 
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import org.apache.flink.ml.linalg.DenseVector;

@@ -1,10 +1,9 @@
 package edu.ntnu.alekssty.master.utils;
 
-import edu.ntnu.alekssty.master.vectorobjects.centroids.BaseCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.offlinecentroids.BaseCentroid;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.connector.file.src.FileSource;
 import org.apache.flink.core.fs.Path;

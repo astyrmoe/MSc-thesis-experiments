@@ -1,20 +1,18 @@
-package edu.ntnu.alekssty.master.vectorobjects.ticentroids;
+package edu.ntnu.alekssty.master.vectorobjects.onlinecentroids;
 
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
-import edu.ntnu.alekssty.master.vectorobjects.centroids.PhilipsCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.offlinecentroids.NaiveCentroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class TICentroid extends PhilipsCentroid implements Centroid {
-
-    public TICentroid(DenseVector vector, int ID, String domain, int k) {
-        super(vector, ID, domain, k);
-        this.movement = -1;
+public class NoTICentroid extends NaiveCentroid implements Centroid {
+    public NoTICentroid(DenseVector vector, int ID, String domain) {
+        super(vector, ID, domain);
     }
 
     @Override
     public int move(DenseVector vector, int cardinality) {
-        this.vector = vector;
         this.cardinality = cardinality;
+        this.vector = vector;
         return giveDistCalcAccAndReset();
     }
 
@@ -23,5 +21,4 @@ public class TICentroid extends PhilipsCentroid implements Centroid {
         this.vector = vector;
         return giveDistCalcAccAndReset();
     }
-
 }

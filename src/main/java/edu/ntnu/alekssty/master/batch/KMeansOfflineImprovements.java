@@ -1,10 +1,9 @@
 package edu.ntnu.alekssty.master.batch;
 
 import edu.ntnu.alekssty.master.debugging.DebugCentorids;
-import edu.ntnu.alekssty.master.debugging.DebugPoints;
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import edu.ntnu.alekssty.master.vectorobjects.Point;
-import edu.ntnu.alekssty.master.vectorobjects.centroids.*;
+import edu.ntnu.alekssty.master.vectorobjects.offlinecentroids.*;
 import edu.ntnu.alekssty.master.vectorobjects.points.*;
 import edu.ntnu.alekssty.master.utils.NewIteration;
 import org.apache.flink.api.common.ExecutionConfig;
@@ -15,7 +14,6 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
-import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.iteration.*;
 import org.apache.flink.ml.clustering.kmeans.KMeansParams;
@@ -25,14 +23,12 @@ import org.apache.flink.ml.param.Param;
 import org.apache.flink.ml.util.ParamUtils;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.Collector;
-import org.apache.flink.util.OutputTag;
 
 import java.util.*;
 

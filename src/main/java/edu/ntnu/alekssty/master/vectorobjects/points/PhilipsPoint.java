@@ -2,7 +2,7 @@ package edu.ntnu.alekssty.master.vectorobjects.points;
 
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import edu.ntnu.alekssty.master.vectorobjects.Point;
-import edu.ntnu.alekssty.master.vectorobjects.centroids.PhilipsCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.offlinecentroids.PhilipsCentroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
 public class PhilipsPoint extends BasePoint implements Point {
