@@ -48,14 +48,12 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
 
     public DataStreamList fit(DataStream<Tuple3<String, DenseVector, String>> input, Methods method) {
 
-        System.out.println("Method used: " + method);
-
         // TODO Make operator its own class
         DataStream<Point> points = input.map(t -> (pointMaker(method,t.f1,t.f0,t.f2))).name("FeatureMaker");
 
         //DataStream<Centroid[]> initCentroids = points.keyBy(Point::getDomain).process(new MakeFirstFeaturesCentroids(method, getK()));
         DataStream<Centroid[]> initCentroids = selectRandomCentroids(points, getK(), getSeed(), method);
-        initCentroids.process(new DebugCentorids("C Init centroids", true, true, "tcprjeS0"));
+        //initCentroids.process(new DebugCentorids("C Init centroids", true, true));
 
         IterationConfig config = IterationConfig.newBuilder()
                 .setOperatorLifeCycle(IterationConfig.OperatorLifeCycle.ALL_ROUND)
@@ -323,6 +321,12 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
                 }
             }
             return allCentroidsFinished;
+        }
+
+        @Override
+        public void open() throws Exception {
+            super.open();
+            getRuntimeContext().addAccumulator("dist-calc-up-"+NewIteration.getInstance().getPoint(), distCalcAcc);
         }
 
         @Override

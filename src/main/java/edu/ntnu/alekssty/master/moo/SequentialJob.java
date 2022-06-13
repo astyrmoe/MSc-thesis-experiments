@@ -89,7 +89,6 @@ public class SequentialJob {
                 .writeAsCsv(outputsPath + method + "-" + job + "-points.csv", FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
         JobExecutionResult jobResult = env.execute(job);
-        System.out.println(jobResult.getNetRuntime());
         System.out.println("JOB RESULTS:\n" + jobResult.getJobExecutionResult());
     }
 

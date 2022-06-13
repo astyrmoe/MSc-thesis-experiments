@@ -8,10 +8,15 @@ import edu.ntnu.alekssty.master.moo.SequentialJob;
 import edu.ntnu.alekssty.master.moo.TransformJob;
 import org.apache.flink.api.java.utils.ParameterTool;
 
+import java.util.Arrays;
+
 public class Job {
 
     public static void main(String[] args) throws Exception {
         ParameterTool parameter = ParameterTool.fromArgs(args);
+
+        System.out.println("CONFIG:\n"+ Arrays.toString(args));
+
         String job = parameter.get("job", "offline");
 
         switch (job) {
