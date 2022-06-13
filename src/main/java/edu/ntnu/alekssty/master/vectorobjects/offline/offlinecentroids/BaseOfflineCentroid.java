@@ -29,10 +29,6 @@ public class BaseOfflineCentroid extends BaseCentroid {
         return giveDistCalcAccAndReset();
     }
 
-    public boolean isFinished() {
-        return finished;
-    }
-
     public double getMovement() {
         return movement;
     }

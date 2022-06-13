@@ -106,7 +106,7 @@ public class KMeansOfflineImprovements implements KMeansParams<KMeansOfflineImpr
                 @Override
                 public void flatMap(OfflineCentroid[] centroids, Collector<Integer> collector) throws Exception {
                     for (OfflineCentroid centroid : centroids) {
-                        if (!centroid.isFinished()) {
+                        if (centroid.getMovement()!=0) {
                             collector.collect(0);
                             break;
                         }
