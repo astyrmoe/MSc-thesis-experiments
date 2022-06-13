@@ -8,8 +8,8 @@ public class WeightedNoTICentroid extends NoTICentroid implements WeightedCentro
 
     public WeightedNoTICentroid(DenseVector vector, int ID, String domain, Integer f2) {
         super(vector, ID, domain);
-        //weight = f2;
-        weight = 1000;
+        weight = f2;
+        //weight = 1000;
     }
 
     @Override

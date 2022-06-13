@@ -1,6 +1,9 @@
 package edu.ntnu.alekssty.master.moo;
 
 import edu.ntnu.alekssty.master.batch.Methods;
+import edu.ntnu.alekssty.master.debugging.DebugCentorids;
+import edu.ntnu.alekssty.master.debugging.DebugPoints;
+import edu.ntnu.alekssty.master.debugging.DebugWeightedCentorids;
 import edu.ntnu.alekssty.master.utils.NewIteration;
 import edu.ntnu.alekssty.master.utils.PointsToTupleForFileOperator;
 import edu.ntnu.alekssty.master.utils.StreamCentroidConnector;
@@ -19,6 +22,7 @@ import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -56,11 +60,11 @@ public class SequentialJob {
         int k = parameter.getInt("k", 2);
         Methods method = Methods.valueOf(parameter.get("method", "naive").toUpperCase());
 
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment().setParallelism(1);
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         DataStream<Tuple3<String, DenseVector, String>> testSource;
         if (seedForRnd==0) {
-            testSource = new StreamNSLKDDConnector(inputPointPath, env).connect().getPoints();
+            testSource = new StreamNSLKDDConnector(inputPointPath, env).connect().getPoints();//.filter(t->t.f0.equals("tcpefsS0"));
         } else {
             testSource = new StreamNSLKDDConnector(inputPointPath, env).connect().getRandomPoints(seedForRnd);
         }
@@ -99,12 +103,16 @@ public class SequentialJob {
         public IterationBodyResult process(DataStreamList dataStreamList, DataStreamList dataStreamList1) {
             DataStream<WeightedCentroid[]> centroids = dataStreamList.get(0);
             DataStream<Point> points = dataStreamList1.get(0);
+            //centroids.process(new DebugWeightedCentorids("i c", true, true, "tcpefsS0"));
+            //points.process(new DebugPoints("i p", true, true, "tcpefsS0"));
 
             SingleOutputStreamOperator<Point> finishedPoint = points.connect(centroids.broadcast())
                     .process(new UpdatePoints());
+            //finishedPoint.process(new DebugPoints("f p", true, true, "tcpefsS0"));
 
             DataStream<WeightedCentroid[]> newCentroids = finishedPoint.connect(centroids.broadcast())
                     .process(new CentroidUpdater());
+            //newCentroids.process(new DebugWeightedCentorids("n c", true, true, "tcpefsS0"));
 
             return new IterationBodyResult(
                     DataStreamList.of(newCentroids),
@@ -130,6 +138,7 @@ public class SequentialJob {
                     return;
                 }
                 updatePoint(point, collector);
+                centroidStorage.remove(point.getDomain());
             }
 
             private void updatePoint(Point point, Collector<Point> collector) {
@@ -145,17 +154,14 @@ public class SequentialJob {
                     Collector<Point> collector
             ) throws Exception {
                 String domain = centroids[0].getDomain();
-                if (centroidStorage.containsKey(domain)) {
-                    if (centroids[0].getWeight() < centroidStorage.get(domain)[0].getWeight()) {
-                        return;
-                    }
-                }
                 centroidStorage.put(domain, centroids);
                 if (buffer.containsKey(domain)) {
-                    for (Point p : buffer.get(domain)) {
-                        updatePoint(p, collector);
+                    if (buffer.get(domain).isEmpty()) {
+                        return;
                     }
-                    buffer.remove(domain);
+                    Point p = buffer.get(domain).remove(0);
+                    updatePoint(p, collector);
+                    centroidStorage.remove(domain);
                 }
             }
 

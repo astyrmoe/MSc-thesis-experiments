@@ -8,8 +8,8 @@ public class WeightedTICentroid extends TICentroid implements WeightedCentroid {
 
     public WeightedTICentroid(DenseVector vector, int ID, String domain, int k, Integer f2) {
         super(vector, ID, domain, k);
-        //weight = f2;
-        weight = 1000;
+        weight = f2;
+        //weight = 1000;
     }
 
     @Override
