@@ -39,7 +39,6 @@ public class BatchJob {
         int batchSize = parameter.getInt("batch-size", 1000);
         int buckets = parameter.getInt("buckets", 23);
 
-
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment().setParallelism(1);
 
         StreamNSLKDDConnector source = new StreamNSLKDDConnector(inputPointPath, env);
@@ -80,70 +79,10 @@ public class BatchJob {
         for (Integer i : res.keySet()) {
             DataStream<Point> resP = res.get(i).get(1);
             resP.map(new PointsToTupleForFileOperator())
-/*
-                    .windowAll(EndOfStreamWindows.get())
-                    .process(new ProcessAllWindowFunction<Tuple3<String, Integer, String>, Tuple5<String, Integer, Integer, Integer, Integer>, TimeWindow>() {
-                        @Override
-                        public void process(ProcessAllWindowFunction<Tuple3<String, Integer, String>, Tuple5<String, Integer, Integer, Integer, Integer>, TimeWindow>.Context context, Iterable<Tuple3<String, Integer, String>> iterable, Collector<Tuple5<String, Integer, Integer, Integer, Integer>> collector) throws Exception {
-                            int tp = 0;
-                            int fp = 0;
-                            int tn = 0;
-                            int fn = 0;
-                            Map<String, Tuple4<Integer, Integer, Integer, Integer>> domainMap = new HashMap<>();
-                            for (Tuple3<String, Integer, String> point : iterable) {
-                                String domain = point.f0;
-                                Tuple4<Integer, Integer, Integer, Integer> tuple = domainMap.get(domain);
-                                if (point.f1 == 0) {
-                                    tuple.f0 ++;
-                                    if (point.f2.equals("normal")) {
-                                        tuple.f1 ++;
-                                    }
-                                }
-                                if (point.f1 == 1) {
-                                    tuple.f2 ++;
-                                    if (point.f2.equals("normal")) {
-                                        tuple.f3 ++;
-                                    }
-                                }
-                                domainMap.put(domain, tuple);
-                            }
-                            for (String domain : domainMap.keySet()) {
-                                Tuple4<Integer, Integer, Integer, Integer> tuple = domainMap.get(domain);
-                                boolean aNormal;
-                                if (tuple.f1 != tuple.f3) {
-                                    aNormal = tuple.f1>tuple.f3;
-                                } else {
-                                    aNormal = tuple.f0 > tuple.f2;
-                                }
-                                if (aNormal) {
-                                    tp += tuple.f2 - tuple.f3;
-                                    fp += tuple.f3;
-                                    tn += tuple.f1;
-                                    fn += tuple.f0 - tuple.f1;
-                                } else {
-                                    tp += tuple.f0 - tuple.f1;
-                                    fp += tuple.f1;
-                                    tn += tuple.f3;
-                                    fn += tuple.f2 - tuple.f3;
-                                }
-                            }
-                            double br = (tp+fn)/(tp+fp+tn+fn);
-                            double tpr = tp/(tp+fn);
-                            double fpr = fp/(fp+tn);
-                            double ppv = br*tpr/(br*tpr+(1-br)*fpr);
-                            System.out.println("TPR = " + tpr);
-                            System.out.println("FPR = " + fpr);
-                            System.out.println("PPV = " + ppv);
-                            collector.collect(Tuple5.of(String.valueOf(i), tp, fp, tn, fn));
-                        }
-                    })
-*/
                     .writeAsCsv(outputsPath + "batch/" + method + "-" + job + "-points" + i + ".csv", FileSystem.WriteMode.OVERWRITE).setParallelism(1);
         }
 
         JobExecutionResult jobResult = env.execute("Experimental work");
-        System.out.println(jobResult.getNetRuntime());
         System.out.println("JOB RESULTS:\n" + jobResult.getJobExecutionResult());
     }
-
 }

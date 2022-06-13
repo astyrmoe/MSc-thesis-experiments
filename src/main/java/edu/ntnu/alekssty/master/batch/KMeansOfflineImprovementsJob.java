@@ -65,11 +65,9 @@ public class KMeansOfflineImprovementsJob {
 		DataStream<Point> resultedPoints = result.get(1);
 		//resultedPoints.process(new DebugPoints("F Resulted feature", true, true));
 		DataStream<Tuple3<String, Integer, String>> readyForCSV = resultedPoints.map(new PointsToTupleForFileOperator());
-		readyForCSV.map(t->1).process(new Counter("Ready for CSV"));
 		readyForCSV.writeAsCsv(outputsPath + method + "-" + job + "-points.csv", FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
 		JobExecutionResult jobResult = env.execute("Experimental work");
-		System.out.println(jobResult.getNetRuntime());
 		System.out.println("JOB RESULTS:\n" + jobResult.getJobExecutionResult());
 	}
 }
