@@ -33,7 +33,7 @@ public class BatchJob {
 
         int k = parameter.getInt("k", 2);
         Methods method = Methods.valueOf(parameter.get("method", "naive").toUpperCase());
-        String job = "offlineB";
+        String job = "batch";
         int seedForRnd = parameter.getInt("seed-rnd-input", 0);
 
         int batchSize = parameter.getInt("batch-size", 1000);
@@ -56,7 +56,7 @@ public class BatchJob {
             testSource = new StreamNSLKDDConnector(inputPointPath, env).connect().getRandomPoints(seedForRnd);
         }
 
-        DataStream<Tuple2<Integer, Tuple3<String, DenseVector, String>>> taggedInput = testSource.countWindowAll(1000).process(new ProcessAllWindowFunction<Tuple3<String, DenseVector, String>, Tuple2<Integer, Tuple3<String, DenseVector, String>>, GlobalWindow>() {
+        DataStream<Tuple2<Integer, Tuple3<String, DenseVector, String>>> taggedInput = testSource.countWindowAll(batchSize).process(new ProcessAllWindowFunction<Tuple3<String, DenseVector, String>, Tuple2<Integer, Tuple3<String, DenseVector, String>>, GlobalWindow>() {
             int i = 0;
             @Override
             public void process(ProcessAllWindowFunction<Tuple3<String, DenseVector, String>, Tuple2<Integer, Tuple3<String, DenseVector, String>>, GlobalWindow>.Context context, Iterable<Tuple3<String, DenseVector, String>> iterable, Collector<Tuple2<Integer, Tuple3<String, DenseVector, String>>> collector) throws Exception {
@@ -69,7 +69,7 @@ public class BatchJob {
 
         Map<Integer, DataStreamList> res = new HashMap<>();
 
-        for (int i = 0; i < 23 ; i++) {
+        for (int i = 0; i < buckets ; i++) {
             int finalI = i;
             DataStream<Tuple2<Integer, Tuple3<String, DenseVector, String>>> temp2 = taggedInput.filter(e -> e.f0 == finalI);
             DataStream<Tuple3<String, DenseVector, String>> temp = temp2.map(t -> t.f1).returns(new TupleTypeInfo<>(TypeInformation.of(String.class), TypeInformation.of(DenseVector.class), TypeInformation.of(String.class)));
@@ -142,6 +142,7 @@ public class BatchJob {
         }
 
         JobExecutionResult jobResult = env.execute("Experimental work");
+        System.out.println(jobResult.getNetRuntime());
         System.out.println("JOB RESULTS:\n" + jobResult.getJobExecutionResult());
     }
 

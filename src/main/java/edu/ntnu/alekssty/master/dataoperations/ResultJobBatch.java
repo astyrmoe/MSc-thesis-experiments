@@ -28,7 +28,7 @@ public class ResultJobBatch {
 
 
         String outputsPath = parameter.get("outputs-path", "/tmp/experiment-results/");
-        String job = parameter.get("job", "offlineB");
+        String job = parameter.get("job", "batch");
 
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment()
                 .setRuntimeMode(RuntimeExecutionMode.BATCH)

@@ -69,6 +69,7 @@ public class KMeansOfflineImprovementsJob {
 		readyForCSV.writeAsCsv(outputsPath + method + "-" + job + "-points.csv", FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
 		JobExecutionResult jobResult = env.execute("Experimental work");
+		System.out.println(jobResult.getNetRuntime());
 		System.out.println("JOB RESULTS:\n" + jobResult.getJobExecutionResult());
 	}
 }

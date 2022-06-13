@@ -89,6 +89,7 @@ public class SequentialJob {
                 .writeAsCsv(outputsPath + method + "-" + job + "-points.csv", FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
         JobExecutionResult jobResult = env.execute(job);
+        System.out.println(jobResult.getNetRuntime());
         System.out.println("JOB RESULTS:\n" + jobResult.getJobExecutionResult());
     }
 
@@ -99,7 +100,8 @@ public class SequentialJob {
             DataStream<WeightedCentroid[]> centroids = dataStreamList.get(0);
             DataStream<Point> points = dataStreamList1.get(0);
 
-            SingleOutputStreamOperator<Point> finishedPoint = points.connect(centroids.broadcast()).process(new UpdatePoints());
+            SingleOutputStreamOperator<Point> finishedPoint = points.connect(centroids.broadcast())
+                    .process(new UpdatePoints());
 
             DataStream<WeightedCentroid[]> newCentroids = finishedPoint.connect(centroids.broadcast())
                     .process(new CentroidUpdater());

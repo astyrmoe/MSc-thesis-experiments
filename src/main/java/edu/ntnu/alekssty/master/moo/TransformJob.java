@@ -68,6 +68,7 @@ public class TransformJob {
                 .writeAsCsv(outputsPath + method + "-" + job + "-points.csv", FileSystem.WriteMode.OVERWRITE);
 
         JobExecutionResult jobRes = env.execute();
+        System.out.println(jobRes.getNetRuntime());
         System.out.println(jobRes.getJobExecutionResult());
     }
 
