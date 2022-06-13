@@ -1,12 +1,13 @@
-package edu.ntnu.alekssty.master.vectorobjects.points;
+package edu.ntnu.alekssty.master.vectorobjects.online.onlinepoints;
 
+import edu.ntnu.alekssty.master.vectorobjects.BasePoint;
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import edu.ntnu.alekssty.master.vectorobjects.Point;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinecentroids.OfflineCentroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class NaivePoint extends BasePoint implements Point {
-
-    public NaivePoint(DenseVector vector, String domain, String label) {
+public class NoTIPoint extends BasePoint implements Point {
+    public NoTIPoint(DenseVector vector, String domain, String label) {
         super(vector, domain, label);
     }
 

@@ -1,10 +1,11 @@
 package edu.ntnu.alekssty.master.moo;
 
-import edu.ntnu.alekssty.master.batch.KMeansOfflineImprovements;
-import edu.ntnu.alekssty.master.batch.Methods;
+import edu.ntnu.alekssty.master.offline.KMeansOfflineImprovements;
+import edu.ntnu.alekssty.master.Methods;
 import edu.ntnu.alekssty.master.utils.PointsToTupleForFileOperator;
 import edu.ntnu.alekssty.master.utils.StreamNSLKDDConnector;
 import edu.ntnu.alekssty.master.vectorobjects.Point;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinepoints.OfflinePoint;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -77,8 +78,8 @@ public class BatchJob {
         }
 
         for (Integer i : res.keySet()) {
-            DataStream<Point> resP = res.get(i).get(1);
-            resP.map(new PointsToTupleForFileOperator())
+            DataStream<OfflinePoint> resP = res.get(i).get(1);
+            resP.map(t->(Point)t).map(new PointsToTupleForFileOperator())
                     .writeAsCsv(outputsPath + "batch/" + method + "-" + job + "-points" + i + ".csv", FileSystem.WriteMode.OVERWRITE).setParallelism(1);
         }
 

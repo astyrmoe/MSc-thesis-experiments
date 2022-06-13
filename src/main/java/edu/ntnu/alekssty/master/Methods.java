@@ -1,4 +1,4 @@
-package edu.ntnu.alekssty.master.batch;
+package edu.ntnu.alekssty.master;
 
 public enum Methods {
 

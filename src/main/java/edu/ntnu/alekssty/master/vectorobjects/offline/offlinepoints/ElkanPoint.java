@@ -1,13 +1,13 @@
-package edu.ntnu.alekssty.master.vectorobjects.points;
+package edu.ntnu.alekssty.master.vectorobjects.offline.offlinepoints;
 
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
-import edu.ntnu.alekssty.master.vectorobjects.Point;
-import edu.ntnu.alekssty.master.vectorobjects.offlinecentroids.ElkanCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinecentroids.OfflineCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinecentroids.ElkanCentroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
 import static java.lang.Double.max;
 
-public class ElkanPoint extends BasePoint implements Point {
+public class ElkanPoint extends BaseOfflinePoint implements OfflinePoint {
 
     public Double upperBound;
     public DenseVector lowerBounds;
@@ -56,9 +56,9 @@ public class ElkanPoint extends BasePoint implements Point {
             return giveDistCalcAccAndReset();
         }
         for (int j = 0; j < k; j++) {
-            this.lowerBounds.values[j] = max(this.lowerBounds.values[j] - centroids[j].getMovement(), 0);
+            this.lowerBounds.values[j] = max(this.lowerBounds.values[j] - ((OfflineCentroid)centroids[j]).getMovement(), 0);
         }
-        this.upperBound = this.upperBound + centroids[this.assignedClusterID].getMovement();
+        this.upperBound = this.upperBound + ((OfflineCentroid)centroids[this.assignedClusterID]).getMovement();
         updateUb = true;
         if (this.upperBound <= ((ElkanCentroid) centroids[this.assignedClusterID]).halfDistToClosestCentroid) {
             return giveDistCalcAccAndReset();

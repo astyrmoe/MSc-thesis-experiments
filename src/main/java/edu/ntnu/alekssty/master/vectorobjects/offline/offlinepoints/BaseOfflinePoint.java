@@ -1,15 +1,15 @@
-package edu.ntnu.alekssty.master.vectorobjects.points;
+package edu.ntnu.alekssty.master.vectorobjects.offline.offlinepoints;
 
 import edu.ntnu.alekssty.master.vectorobjects.Vector;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class BasePoint extends Vector {
+public class BaseOfflinePoint extends Vector {
 
     public int assignedClusterID;
     public boolean finished;
     public String label;
 
-    public BasePoint(DenseVector vector, String domain, String label) {
+    public BaseOfflinePoint(DenseVector vector, String domain, String label) {
         super(vector, domain);
         assignedClusterID = -1;
         finished = false;

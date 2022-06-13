@@ -1,6 +1,6 @@
 package edu.ntnu.alekssty.master;
 
-import edu.ntnu.alekssty.master.batch.KMeansOfflineImprovementsJob;
+import edu.ntnu.alekssty.master.offline.KMeansOfflineImprovementsJob;
 import edu.ntnu.alekssty.master.debugging.Testing;
 import edu.ntnu.alekssty.master.debugging.Testing2;
 import edu.ntnu.alekssty.master.moo.BatchJob;

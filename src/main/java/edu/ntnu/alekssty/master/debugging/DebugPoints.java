@@ -1,12 +1,12 @@
 package edu.ntnu.alekssty.master.debugging;
 
-import edu.ntnu.alekssty.master.vectorobjects.Point;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinepoints.OfflinePoint;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 
-public class DebugPoints extends ProcessFunction<Point, Point> {
+public class DebugPoints extends ProcessFunction<OfflinePoint, OfflinePoint> {
 
     final IntCounter accPoints =new IntCounter();
 
@@ -39,7 +39,7 @@ public class DebugPoints extends ProcessFunction<Point, Point> {
     }
 
     @Override
-    public void processElement(Point point, ProcessFunction<Point, Point>.Context context, Collector<Point> collector) throws Exception {
+    public void processElement(OfflinePoint point, ProcessFunction<OfflinePoint, OfflinePoint>.Context context, Collector<OfflinePoint> collector) throws Exception {
         if (domainFilter != null && !point.getDomain().equals(domainFilter)) {return;}
         if (acc) {
             accPoints.add(1);}

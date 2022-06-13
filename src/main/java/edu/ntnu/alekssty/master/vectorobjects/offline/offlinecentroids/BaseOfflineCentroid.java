@@ -1,18 +1,17 @@
-package edu.ntnu.alekssty.master.vectorobjects.offlinecentroids;
+package edu.ntnu.alekssty.master.vectorobjects.offline.offlinecentroids;
 
+import edu.ntnu.alekssty.master.vectorobjects.BaseCentroid;
 import edu.ntnu.alekssty.master.vectorobjects.Vector;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class BaseCentroid extends Vector {
+public class BaseOfflineCentroid extends BaseCentroid {
 
     boolean finished;
     public double movement;
-    final int ID;
     public int cardinality;
 
-    public BaseCentroid(DenseVector vector, int ID, String domain) {
-        super(vector, domain);
-        this.ID = ID;
+    public BaseOfflineCentroid(DenseVector vector, int ID, String domain) {
+        super(vector, ID, domain);
         this.movement = Double.MAX_VALUE;
         this.finished = false;
     }
@@ -30,10 +29,6 @@ public class BaseCentroid extends Vector {
         return giveDistCalcAccAndReset();
     }
 
-    public String getDomain() {
-        return domain;
-    }
-
     public boolean isFinished() {
         return finished;
     }
@@ -44,24 +39,5 @@ public class BaseCentroid extends Vector {
 
     public int getCardinality() {
         return cardinality;
-    }
-
-    public DenseVector getVector() {
-        return vector;
-    }
-
-    public int getID() {
-        return ID;
-    }
-
-    @Override
-    public String toString() {
-        return this.getClass().getSimpleName() + "{" +
-                "finished=" + finished +
-                ", movement=" + movement +
-                ", ID=" + ID +
-                ", vector=" + vector +
-                ", domain='" + domain + '\'' +
-                '}';
     }
 }

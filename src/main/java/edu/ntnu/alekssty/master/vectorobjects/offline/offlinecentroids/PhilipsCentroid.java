@@ -1,13 +1,13 @@
-package edu.ntnu.alekssty.master.vectorobjects.offlinecentroids;
+package edu.ntnu.alekssty.master.vectorobjects.offline.offlinecentroids;
 
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class PhilipsCentroid extends BaseCentroid implements Centroid {
+public class PhilipsCentroid extends BaseOfflineCentroid implements OfflineCentroid {
 
     public DenseVector distToOthers;
 
-    public double getDistanceTo(Centroid c) {
+    public double getDistanceTo(OfflineCentroid c) {
         if (distToOthers.get(c.getID()) == 0) {
             double dist = distance(c.getVector());
             distToOthers.values[c.getID()] = dist;
@@ -25,7 +25,7 @@ public class PhilipsCentroid extends BaseCentroid implements Centroid {
     @Override
     public int update(Centroid[] centroids) {
         for (Centroid c : centroids) {
-            if (c.getMovement() == 0 && this.movement == 0) {continue;}
+            if (((OfflineCentroid)c).getMovement() == 0 && this.movement == 0) {continue;}
             if (c.getID() <= this.ID) {continue;}
             double dist = distance(c.getVector());
             distToOthers.values[c.getID()] = dist;

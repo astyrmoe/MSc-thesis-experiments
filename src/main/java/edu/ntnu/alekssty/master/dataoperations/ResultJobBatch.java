@@ -1,6 +1,6 @@
 package edu.ntnu.alekssty.master.dataoperations;
 
-import edu.ntnu.alekssty.master.batch.Methods;
+import edu.ntnu.alekssty.master.Methods;
 import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.AggregateFunction;
