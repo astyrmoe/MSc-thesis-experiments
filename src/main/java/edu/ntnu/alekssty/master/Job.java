@@ -3,7 +3,7 @@ package edu.ntnu.alekssty.master;
 import edu.ntnu.alekssty.master.batch.KMeansOfflineImprovementsJob;
 import edu.ntnu.alekssty.master.debugging.Testing;
 import edu.ntnu.alekssty.master.debugging.Testing2;
-import edu.ntnu.alekssty.master.moo.OfflineTestJob;
+import edu.ntnu.alekssty.master.moo.BatchJob;
 import edu.ntnu.alekssty.master.moo.SequentialJob;
 import edu.ntnu.alekssty.master.moo.TransformJob;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -30,8 +30,8 @@ public class Job {
             case "seq":
                 SequentialJob.main(args);
                 break;
-            case "offline-test":
-                OfflineTestJob.main(args);
+            case "batch":
+                BatchJob.main(args);
                 break;
         }
     }

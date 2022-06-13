@@ -2,39 +2,28 @@ package edu.ntnu.alekssty.master.moo;
 
 import edu.ntnu.alekssty.master.batch.KMeansOfflineImprovements;
 import edu.ntnu.alekssty.master.batch.Methods;
-import edu.ntnu.alekssty.master.utils.CentroidToTupleForFileOperator;
-import edu.ntnu.alekssty.master.utils.Counter;
 import edu.ntnu.alekssty.master.utils.PointsToTupleForFileOperator;
 import edu.ntnu.alekssty.master.utils.StreamNSLKDDConnector;
-import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import edu.ntnu.alekssty.master.vectorobjects.Point;
 import org.apache.flink.api.common.JobExecutionResult;
-import org.apache.flink.api.common.RuntimeExecutionMode;
-import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
-import org.apache.flink.api.java.tuple.Tuple4;
-import org.apache.flink.api.java.tuple.Tuple5;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.iteration.DataStreamList;
-import org.apache.flink.ml.common.datastream.EndOfStreamWindows;
 import org.apache.flink.ml.linalg.DenseVector;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.GlobalWindow;
-import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-public class OfflineTestJob {
+public class BatchJob {
     public static void main(String[] args) throws Exception {
 
         ParameterTool parameter = ParameterTool.fromArgs(args);
@@ -46,6 +35,9 @@ public class OfflineTestJob {
         Methods method = Methods.valueOf(parameter.get("method", "naive").toUpperCase());
         String job = "offlineB";
         int seedForRnd = parameter.getInt("seed-rnd-input", 0);
+
+        int batchSize = parameter.getInt("batch-size", 1000);
+        int buckets = parameter.getInt("buckets", 23);
 
 
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment().setParallelism(1);
