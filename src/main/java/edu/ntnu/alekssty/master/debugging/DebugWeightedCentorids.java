@@ -1,7 +1,7 @@
 package edu.ntnu.alekssty.master.debugging;
 
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
-import edu.ntnu.alekssty.master.vectorobjects.onlinecentroids.WeightedCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.online.onlinecentroids.WeightedCentroid;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
