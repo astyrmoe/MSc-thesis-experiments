@@ -1,32 +1,21 @@
-package edu.ntnu.alekssty.master.vectorobjects.points;
+package edu.ntnu.alekssty.master.vectorobjects;
 
-import edu.ntnu.alekssty.master.vectorobjects.Vector;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinecentroids.OfflineCentroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
 public class BasePoint extends Vector {
 
     public int assignedClusterID;
-    public boolean finished;
     public String label;
 
     public BasePoint(DenseVector vector, String domain, String label) {
         super(vector, domain);
         assignedClusterID = -1;
-        finished = false;
         this.label = label;
     }
 
     public DenseVector getVector() {
         return vector;
-    }
-
-    public boolean isFinished() {
-        return finished;
-    }
-
-    public void setFinished() {
-        finished = true;
-
     }
 
     public String getLabel() {
@@ -45,7 +34,6 @@ public class BasePoint extends Vector {
     public String toString() {
         return this.getClass().getSimpleName() + "{" +
                 "assignedClusterID=" + assignedClusterID +
-                ", finished=" + finished +
                 ", vector=" + vector +
                 ", domain='" + domain + '\'' +
                 '}';

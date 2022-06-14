@@ -1,11 +1,11 @@
-package edu.ntnu.alekssty.master.vectorobjects.points;
+package edu.ntnu.alekssty.master.vectorobjects.offline.offlinepoints;
 
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
-import edu.ntnu.alekssty.master.vectorobjects.Point;
-import edu.ntnu.alekssty.master.vectorobjects.offlinecentroids.HamerlyCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinecentroids.OfflineCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinecentroids.HamerlyCentroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class HamerlyPoint extends BasePoint implements Point {
+public class HamerlyPoint extends BaseOfflinePoint implements OfflinePoint {
 
     double lowerBound;
     double upperBound;
@@ -21,11 +21,11 @@ public class HamerlyPoint extends BasePoint implements Point {
         if (assignedClusterID == -1) {
             assignedClusterID = 0;
         }
-        upperBound = upperBound + centroids[assignedClusterID].getMovement();
+        upperBound = upperBound + ((OfflineCentroid)centroids[assignedClusterID]).getMovement();
         double biggestMovement = 0;
         for (Centroid c : centroids) {
-            if (c.getMovement() > biggestMovement) {
-                biggestMovement = c.getMovement();
+            if (((OfflineCentroid)c).getMovement() > biggestMovement) {
+                biggestMovement = ((OfflineCentroid)c).getMovement();
             }
         }
         lowerBound = lowerBound - biggestMovement;

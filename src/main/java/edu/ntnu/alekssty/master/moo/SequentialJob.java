@@ -1,30 +1,25 @@
 package edu.ntnu.alekssty.master.moo;
 
-import edu.ntnu.alekssty.master.batch.Methods;
-import edu.ntnu.alekssty.master.debugging.DebugCentorids;
-import edu.ntnu.alekssty.master.debugging.DebugPoints;
-import edu.ntnu.alekssty.master.debugging.DebugWeightedCentorids;
+import edu.ntnu.alekssty.master.Methods;
 import edu.ntnu.alekssty.master.utils.NewIteration;
 import edu.ntnu.alekssty.master.utils.PointsToTupleForFileOperator;
 import edu.ntnu.alekssty.master.utils.StreamCentroidConnector;
 import edu.ntnu.alekssty.master.utils.StreamNSLKDDConnector;
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import edu.ntnu.alekssty.master.vectorobjects.Point;
-import edu.ntnu.alekssty.master.vectorobjects.onlinecentroids.WeightedCentroid;
-import edu.ntnu.alekssty.master.vectorobjects.onlinecentroids.WeightedNoTICentroid;
-import edu.ntnu.alekssty.master.vectorobjects.onlinecentroids.WeightedTICentroid;
-import edu.ntnu.alekssty.master.vectorobjects.points.NaivePoint;
-import edu.ntnu.alekssty.master.vectorobjects.points.PhilipsPoint;
+import edu.ntnu.alekssty.master.vectorobjects.online.onlinecentroids.WeightedCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.online.onlinecentroids.WeightedNoTICentroid;
+import edu.ntnu.alekssty.master.vectorobjects.online.onlinecentroids.WeightedTICentroid;
+import edu.ntnu.alekssty.master.vectorobjects.online.onlinepoints.NoTIPoint;
+import edu.ntnu.alekssty.master.vectorobjects.online.onlinepoints.TIPoint;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
-import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple3;
-import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.FileSystem;
@@ -38,7 +33,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.functions.co.CoProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
@@ -303,10 +297,10 @@ public class SequentialJob {
             Point out;
             switch (method) {
                 case PHILIPS:
-                    out = new PhilipsPoint(in.f1, in.f0, in.f2);
+                    out = new TIPoint(in.f1, in.f0, in.f2);
                     break;
                 default:
-                    out = new NaivePoint(in.f1, in.f0, in.f2);
+                    out = new NoTIPoint(in.f1, in.f0, in.f2);
             }
             return out;
         }

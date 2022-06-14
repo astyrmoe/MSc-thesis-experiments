@@ -1,9 +1,9 @@
-package edu.ntnu.alekssty.master.vectorobjects.offlinecentroids;
+package edu.ntnu.alekssty.master.vectorobjects.offline.offlinecentroids;
 
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class ElkanCentroid extends BaseCentroid implements Centroid {
+public class ElkanCentroid extends BaseOfflineCentroid implements OfflineCentroid {
 
     public DenseVector distanceToOtherCentroids;
     public double halfDistToClosestCentroid;
@@ -17,7 +17,7 @@ public class ElkanCentroid extends BaseCentroid implements Centroid {
     public int update(Centroid[] centroids) {
         double closestDist = Double.MAX_VALUE;
         for (Centroid c : centroids) {
-            if (c.getMovement() == 0 && this.movement == 0) {continue;}
+            if (((OfflineCentroid)c).getMovement() == 0 && this.movement == 0) {continue;}
             if (c.getID() <= this.ID) {continue;}
             double dist = distance(c.getVector());
             distanceToOtherCentroids.values[c.getID()] = dist;

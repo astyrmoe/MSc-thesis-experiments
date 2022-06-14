@@ -1,16 +1,16 @@
 package edu.ntnu.alekssty.master.moo;
 
-import edu.ntnu.alekssty.master.batch.Methods;
+import edu.ntnu.alekssty.master.Methods;
 import edu.ntnu.alekssty.master.utils.NewIteration;
 import edu.ntnu.alekssty.master.utils.PointsToTupleForFileOperator;
 import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import edu.ntnu.alekssty.master.vectorobjects.Point;
 import edu.ntnu.alekssty.master.utils.StreamNSLKDDConnector;
 import edu.ntnu.alekssty.master.utils.StreamCentroidConnector;
-import edu.ntnu.alekssty.master.vectorobjects.points.NaivePoint;
-import edu.ntnu.alekssty.master.vectorobjects.points.PhilipsPoint;
-import edu.ntnu.alekssty.master.vectorobjects.onlinecentroids.NoTICentroid;
-import edu.ntnu.alekssty.master.vectorobjects.onlinecentroids.TICentroid;
+import edu.ntnu.alekssty.master.vectorobjects.online.onlinecentroids.NoTICentroid;
+import edu.ntnu.alekssty.master.vectorobjects.online.onlinecentroids.TICentroid;
+import edu.ntnu.alekssty.master.vectorobjects.online.onlinepoints.NoTIPoint;
+import edu.ntnu.alekssty.master.vectorobjects.online.onlinepoints.TIPoint;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -152,14 +152,11 @@ public class TransformJob {
         public Point map(Tuple3<String, DenseVector, String> in) throws Exception {
             Point out;
             switch (method) {
-                case NAIVE:
-                    out = new NaivePoint(in.f1, in.f0, in.f2);
-                    break;
                 case PHILIPS:
-                    out = new PhilipsPoint(in.f1, in.f0, in.f2);
+                    out = new TIPoint(in.f1, in.f0, in.f2);
                     break;
                 default:
-                    out = new NaivePoint(in.f1, in.f0, in.f2);
+                    out = new NoTIPoint(in.f1, in.f0, in.f2);
             }
             return out;
         }

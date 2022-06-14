@@ -1,12 +1,12 @@
 package edu.ntnu.alekssty.master.debugging;
 
-import edu.ntnu.alekssty.master.vectorobjects.Centroid;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinecentroids.OfflineCentroid;
 import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 
-public class DebugCentorids extends ProcessFunction<Centroid[], Centroid[]> {
+public class DebugCentorids extends ProcessFunction<OfflineCentroid[], OfflineCentroid[]> {
 
     final IntCounter accCentroids=new IntCounter();
     final IntCounter accDomains = new IntCounter();
@@ -40,7 +40,7 @@ public class DebugCentorids extends ProcessFunction<Centroid[], Centroid[]> {
     }
 
     @Override
-    public void processElement(Centroid[] centroids, ProcessFunction<Centroid[], Centroid[]>.Context context, Collector<Centroid[]> collector) throws Exception {
+    public void processElement(OfflineCentroid[] centroids, ProcessFunction<OfflineCentroid[], OfflineCentroid[]>.Context context, Collector<OfflineCentroid[]> collector) throws Exception {
         if (domainFilter != null && !centroids[0].getDomain().equals(domainFilter)) {
             return;
         }
@@ -50,7 +50,7 @@ public class DebugCentorids extends ProcessFunction<Centroid[], Centroid[]> {
         }
         if (print) {
             System.out.println(title + " - Domain: " + centroids[0].getDomain());
-            for (Centroid centroid : centroids) {
+            for (OfflineCentroid centroid : centroids) {
                 if (acc) {accCentroids.add(1);}
                 System.out.println(title + " - -> " + centroid);
             }

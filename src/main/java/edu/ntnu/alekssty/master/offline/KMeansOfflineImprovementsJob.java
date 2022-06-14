@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-package edu.ntnu.alekssty.master.batch;
+package edu.ntnu.alekssty.master.offline;
 
-import edu.ntnu.alekssty.master.debugging.DebugPoints;
+import edu.ntnu.alekssty.master.Methods;
 import edu.ntnu.alekssty.master.utils.*;
-import edu.ntnu.alekssty.master.vectorobjects.Centroid;
 import edu.ntnu.alekssty.master.vectorobjects.Point;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinecentroids.OfflineCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinepoints.OfflinePoint;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -57,14 +58,14 @@ public class KMeansOfflineImprovementsJob {
 
 		DataStreamList result = engine.fit(input, method);
 
-		DataStream<Centroid[]> resultedCentroids = result.get(0);
+		DataStream<OfflineCentroid[]> resultedCentroids = result.get(0);
 		resultedCentroids
 				.flatMap(new CentroidToTupleForFileOperator()).name("Make centroids csv-ready")
 				.writeAsCsv(outputsPath + method+ "-" + job + "-centroids.csv", FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
-		DataStream<Point> resultedPoints = result.get(1);
+		DataStream<OfflinePoint> resultedPoints = result.get(1);
 		//resultedPoints.process(new DebugPoints("F Resulted feature", true, true));
-		DataStream<Tuple3<String, Integer, String>> readyForCSV = resultedPoints.map(new PointsToTupleForFileOperator());
+		DataStream<Tuple3<String, Integer, String>> readyForCSV = resultedPoints.map(t->(Point)t).map(new PointsToTupleForFileOperator());
 		readyForCSV.writeAsCsv(outputsPath + method + "-" + job + "-points.csv", FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
 		JobExecutionResult jobResult = env.execute("Experimental work");

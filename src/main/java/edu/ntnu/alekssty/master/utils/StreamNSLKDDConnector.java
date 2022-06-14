@@ -1,6 +1,6 @@
 package edu.ntnu.alekssty.master.utils;
 
-import edu.ntnu.alekssty.master.vectorobjects.points.BasePoint;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinepoints.BaseOfflinePoint;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -15,9 +15,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
-import org.apache.flink.streaming.api.windowing.assigners.GlobalWindows;
-import org.apache.flink.streaming.api.windowing.windows.GlobalWindow;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
@@ -66,7 +63,7 @@ public class StreamNSLKDDConnector {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         StreamNSLKDDConnector c = new StreamNSLKDDConnector("/home/aleks/dev/master/NSL-KDD/KDDTrain+_20Percent.txt", env);
         c.connect();
-        env.fromSource(c.source, WatermarkStrategy.noWatermarks(), "test").map(o -> new BasePoint(o.getFeatures(), o.getDomain(), o.getNormalOrAnormal())).print();
+        env.fromSource(c.source, WatermarkStrategy.noWatermarks(), "test").map(o -> new BaseOfflinePoint(o.getFeatures(), o.getDomain(), o.getNormalOrAnormal())).print();
         env.execute();
     }
 

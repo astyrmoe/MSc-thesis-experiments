@@ -1,6 +1,6 @@
 package edu.ntnu.alekssty.master.utils;
 
-import edu.ntnu.alekssty.master.vectorobjects.offlinecentroids.BaseCentroid;
+import edu.ntnu.alekssty.master.vectorobjects.offline.offlinecentroids.BaseOfflineCentroid;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -34,7 +34,7 @@ public class StreamCentroidConnector {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         StreamCentroidConnector c = new StreamCentroidConnector("/tmp/experiment-results/naive-centroids.csv", env);
         c.connect();
-        env.fromSource(c.source, WatermarkStrategy.noWatermarks(), "test").map(o -> new BaseCentroid(o.getDenseVectors(), 1, o.domain)).print();
+        env.fromSource(c.source, WatermarkStrategy.noWatermarks(), "test").map(o -> new BaseOfflineCentroid(o.getDenseVectors(), 1, o.domain)).print();
         env.execute();
     }
 

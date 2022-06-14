@@ -1,13 +1,13 @@
-package edu.ntnu.alekssty.master.vectorobjects.onlinecentroids;
+package edu.ntnu.alekssty.master.vectorobjects.online.onlinecentroids;
 
 import org.apache.flink.ml.linalg.DenseVector;
 
-public class WeightedNoTICentroid extends NoTICentroid implements WeightedCentroid {
+public class WeightedTICentroid extends TICentroid implements WeightedCentroid {
 
     int weight;
 
-    public WeightedNoTICentroid(DenseVector vector, int ID, String domain, Integer f2) {
-        super(vector, ID, domain);
+    public WeightedTICentroid(DenseVector vector, int ID, String domain, int k, Integer f2) {
+        super(vector, ID, domain, k);
         weight = f2;
         //weight = 1000;
     }
