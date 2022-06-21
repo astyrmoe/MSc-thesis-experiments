@@ -55,6 +55,8 @@ public class BatchJob {
             testSource = new StreamNSLKDDConnector(inputPointPath, env).connect().getRandomPoints(seedForRnd);
         }
 
+        //DataStream<Tuple3<String, DenseVector, String>> testSource2 = testSource.filter(t -> Newt.get().contains(t.f0));
+
         DataStream<Tuple2<Integer, Tuple3<String, DenseVector, String>>> taggedInput = testSource.countWindowAll(batchSize).process(new ProcessAllWindowFunction<Tuple3<String, DenseVector, String>, Tuple2<Integer, Tuple3<String, DenseVector, String>>, GlobalWindow>() {
             int i = 0;
             @Override

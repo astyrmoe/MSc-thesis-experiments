@@ -44,10 +44,18 @@ public class TransformJob {
         String outputsPath = parameter.get("outputs-path", "/tmp/experiment-results/");
         int k = parameter.getInt("k", 2);
         Methods method = Methods.valueOf(parameter.get("method", "naive").toUpperCase());
+        int seedForRnd = parameter.getInt("seed-rnd-input", 0);
+
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment().setParallelism(1);
 
-        DataStream<Tuple3<String, DenseVector, String>> testSource = new StreamNSLKDDConnector(inputPointPath, env).connect().getPoints();
+
+        DataStream<Tuple3<String, DenseVector, String>> testSource;
+        if (seedForRnd==0) {
+            testSource = new StreamNSLKDDConnector(inputPointPath, env).connect().getPoints();//.filter(t->t.f0.equals("tcpefsS0"));
+        } else {
+            testSource = new StreamNSLKDDConnector(inputPointPath, env).connect().getRandomPoints(seedForRnd);
+        }
         DataStream<Tuple3<String, DenseVector, Integer>> centroidSource = new StreamCentroidConnector(inputCentroidPath, env).connect().getCentroids();
 
         DataStream<Centroid[]> centroids = centroidSource

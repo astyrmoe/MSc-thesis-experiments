@@ -131,6 +131,7 @@ public class ResultJob {
                 double tpr = (double) tp / ((double) tp + (double) fn);
                 double fpr = (double) fp / ((double) fp + (double) tn);
                 double ppv = br * tpr / (br * tpr + (1 - br) * fpr);
+                System.out.println("BR = " + br);
                 System.out.println("TPR = " + tpr);
                 System.out.println("FPR = " + fpr);
                 System.out.println("PPV = " + ppv);
